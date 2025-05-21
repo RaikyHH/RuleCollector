@@ -1,184 +1,548 @@
-body {
-    font-family: sans-serif;
-    margin: 0;
-    background-color: #f4f4f4;
-    color: #333;
-    display: flex;
-    flex-direction: column;
-    min-height: 100vh;
+/* ARTIFAKT Design System - Sigma Viewer CSS */
+
+/* --- CSS Custom Properties (Variables) for Colors --- */
+:root {
+    /* Backgrounds */
+    --bg-primary: #121212;
+    --bg-secondary: #1e1e1e;
+    --bg-tertiary: #2a2a2a; /* For headers, table heads, inputs */
+    --bg-tertiary-alt: #1f1f1f; /* Slight variation */
+
+    /* Text */
+    --text-primary: #e0e0e0;
+    --text-secondary: #cccccc; /* Headings, important labels */
+    --text-tertiary: #aaaaaa;
+    --text-subtle: #888888;
+
+    /* Accents */
+    --accent-primary: #7d212b;
+    --accent-primary-hover: #9c2a36; /* Link hover */
+    --accent-primary-darker-hover: #641a22; /* Button hover */
+
+    /* Borders */
+    --border-color-light: #555555;
+    --border-color-medium: #444444;
+    --border-color-dark: #333333;
+
+    /* Focus */
+    --focus-glow-color: rgba(125, 33, 43, 0.3);
+
+    /* Status Colors */
+    --status-success-bg: #4caf50;
+    --status-success-text: #ffffff;
+    --status-info-bg-flash: rgba(23, 162, 184, 0.9);
+    --status-info-text: #56C2E6; /* For text on transparent bg */
+    --status-info-text-flash: #ffffff;
+    --status-warning-bg-flash: rgba(255, 193, 7, 0.9);
+    --status-warning-text: #FFC000; /* For text on transparent bg */
+    --status-warning-text-flash: #111111;
+    --status-error-bg: #f44336;
+    --status-error-text: #ffffff;
+    --status-notfound-bg: #757575;
+    --status-notfound-text: #ffffff;
+    --status-unknown-bg: #444444;
+    --status-unknown-text: #cccccc;
+
+    /* Typography */
+    --font-family-system: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+    --font-size-base: 16px;
+    --line-height-base: 1.6;
+
+    --font-size-h1: 1.8rem;
+    --font-size-h2: 1.6rem;
+    --font-size-h3: 1.3rem;
+    --font-size-table: 0.9rem;
+    --font-size-small: 0.85rem;
+
+    /* Scrollbar Colors */
+    --scrollbar-thumb-color: var(--border-color-light);
+    --scrollbar-thumb-hover-color: var(--text-tertiary);
+    --scrollbar-track-color: var(--bg-primary);
+    --scrollbar-track-hover-color: var(--border-color-dark); /* Optional for track hover */
 }
 
-.container {
+/* --- Global Styles & Resets --- */
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+html {
+    font-size: var(--font-size-base);
+    scroll-behavior: smooth;
+    height: 100%;
+}
+
+body {
+    margin: 0;
+    font-family: var(--font-family-system);
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    line-height: var(--line-height-base);
     display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    color: var(--text-secondary);
+    margin-top: 0;
+    margin-bottom: 0.75rem;
+    font-weight: 700;
+}
+.app-title { font-size: var(--font-size-h1); margin-bottom: 1.5rem; text-align: center; }
+.rules-heading { font-size: var(--font-size-h2); margin-bottom: 0.5rem; border-bottom: 1px solid var(--border-color-dark); padding-bottom: 0.5rem;}
+
+/* NEU: Anpassung für .content-header, um Button aufzunehmen */
+.content-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem; /* Behält den Standard-Margin von H3 bei */
+}
+.content-header h3 {
+    margin-bottom: 0; /* Entfernt Margin von H3, da .content-header ihn übernimmt */
+    flex-grow: 1; /* H3 nimmt verfügbaren Platz */
+}
+
+
+a {
+    color: var(--accent-primary);
+    text-decoration: none;
+}
+a:hover, a:focus {
+    color: var(--accent-primary-hover);
+    text-decoration: underline;
+}
+
+pre, code {
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+    font-size: 0.9em;
+    background-color: var(--bg-secondary);
+    border-radius: 3px;
+}
+pre {
+    padding: 1em;
+    overflow-x: auto; /* Horizontales Scrollen für <pre> beibehalten */
+    background-color: var(--bg-tertiary-alt);
+    border: 1px solid var(--border-color-dark);
+    color: var(--text-primary);
+}
+
+/* --- Main Layout --- */
+.app-container {
+    display: flex;
+    width: 100%;
     flex-grow: 1;
-    overflow: hidden; /* Verhindert Scrollbalken auf Body-Ebene durch Flexbox */
+    overflow: hidden;
 }
 
 .sidebar {
     width: 30%;
-    min-width: 250px;
-    background-color: #e9ecef;
-    padding: 15px;
-    border-right: 1px solid #ccc;
-    display: flex;
-    flex-direction: column;
-    overflow-y: auto; /* Scrollbar nur für Sidebar */
-}
-
-.sidebar h2 {
-    margin-top: 0;
-    color: #007bff;
-    text-align: center;
-    border-bottom: 1px solid #ccc;
-    padding-bottom: 10px;
-}
-
-.sidebar form {
-    margin-bottom: 15px;
+    min-width: 320px;
+    max-width: 450px;
+    background-color: var(--bg-secondary);
+    padding: 1.5rem;
+    border-right: 1px solid var(--border-color-dark);
     display: flex;
     flex-direction: column;
 }
+.sidebar-header,
+.filter-form,
+.rules-heading {
+    flex-shrink: 0;
+}
+.sidebar-header { margin-bottom: 1rem; }
+.filter-form { margin-bottom: 1.5rem; }
 
-.sidebar input[type="text"],
-.sidebar select {
-    margin-bottom: 8px;
-    padding: 8px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    font-size: 0.9em;
+
+.main-content-area {
+    width: 70%;
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
 }
 
-.sidebar button {
-    padding: 10px;
-    background-color: #007bff;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    margin-bottom: 5px;
-}
-.sidebar button[type="button"] {
-    background-color: #6c757d;
-}
-
-
-.sidebar button:hover {
-    opacity: 0.9;
-}
-
+/* --- Regel Liste (Sidebar) --- */
 .rule-list {
     list-style: none;
     padding: 0;
     margin: 0;
-    flex-grow: 1; /* Nimmt verfügbaren Platz ein */
+    flex-grow: 1;
+    min-height: 0;
+    overflow-y: auto;
 }
-
-.rule-list li {
-    padding: 8px 5px;
-    border-bottom: 1px solid #ddd;
-}
-.rule-list li.active {
-    background-color: #007bff;
-}
-.rule-list li.active a {
-    color: white;
-    font-weight: bold;
-}
-
-.rule-list li a {
-    text-decoration: none;
-    color: #333;
+.rule-item a {
     display: block;
+    padding: 0.6rem 0.5rem;
+    border-bottom: 1px solid var(--border-color-dark);
+    color: var(--text-primary);
+    transition: background-color 0.15s ease;
 }
-
-.rule-list li a:hover {
-    color: #0056b3;
+.rule-item a:hover, .rule-item a:focus {
+    background-color: var(--bg-tertiary-alt);
+    text-decoration: none;
+    color: var(--accent-primary-hover);
 }
-
-.main-content {
-    width: 70%;
-    padding: 15px;
+.rule-item.active a {
+    background-color: var(--accent-primary);
+    color: #ffffff;
+    font-weight: 700;
+}
+.rule-item.active a:hover, .rule-item.active a:focus {
+    background-color: var(--accent-primary);
+    color: #ffffff;
+}
+.rule-item .rule-title {
+    display: block;
+    margin-bottom: 0.25rem;
+    font-size: 0.95rem;
+}
+.rule-item .rule-indicators {
     display: flex;
-    flex-direction: column;
-    overflow-y: auto; /* Scrollbar nur für main-content */
+    gap: 0.5rem;
+    font-size: var(--font-size-small);
+}
+.no-rules {
+    padding: 1rem;
+    color: var(--text-tertiary);
+    text-align: center;
 }
 
-.rule-display-area {
-    height: 60%; /* Obere zwei Drittel */
-    overflow-y: auto;
-    border: 1px solid #ccc;
-    padding: 10px;
-    background-color: #fff;
-    margin-bottom: 15px;
-    display: flex;
-    flex-direction: column;
-}
-.rule-display-area h3 { margin-top: 0; }
 
-.metadata-area {
-    height: 40%; /* Unteres Drittel */
-    overflow-y: auto;
-    border: 1px solid #ccc;
-    padding: 10px;
-    background-color: #fff;
-    display: flex;
-    flex-direction: column;
-}
-.metadata-area h3 { margin-top: 0; }
-
-
-pre.yaml-content, pre.json-content {
-    background-color: #2b2b2b;
-    color: #f0f0f0;
-    padding: 10px;
+/* --- Hauptinhaltsbereiche (Rechts) --- */
+.metadata-container {
+    flex: 2;
+    min-height: 150px;
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color-medium);
     border-radius: 4px;
-    white-space: pre-wrap;
-    word-wrap: break-word;
-    font-family: 'Courier New', Courier, monospace;
-    font-size: 0.9em;
-    flex-grow: 1; /* Nimmt verfügbaren Platz im Flex-Container ein */
-    overflow-y: auto; /* Erlaubt Scrollen innerhalb der Pre-Box */
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    overflow: auto;
 }
+.metadata-container .content-header { margin-bottom: 0.5rem; flex-shrink: 0; }
+.metadata-container .metadata-table { flex-grow: 1; }
 
-.metadata-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.9em;
-}
 
-.metadata-table th, .metadata-table td {
-    border: 1px solid #ddd;
-    padding: 8px;
-    text-align: left;
-    vertical-align: top;
-}
-
-.metadata-table th {
-    background-color: #f8f9fa;
-    width: 25%;
-}
-
-.metadata-table td ul {
-    margin: 0;
-    padding-left: 20px;
-}
-
-.tag {
-    display: inline-block;
-    background-color: #007bff;
-    color: white;
-    padding: 2px 6px;
-    margin-right: 5px;
-    margin-bottom: 5px;
+.rule-display-container {
+    flex: 3;
+    min-height: 200px;
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color-medium);
     border-radius: 4px;
-    font-size: 0.85em;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+}
+.rule-display-container .content-header { flex-shrink: 0; }
+
+.rule-raw-content {
+    flex-grow: 1;
+    min-height: 0;
+    overflow-y: auto;
+}
+.rule-raw-content pre {
+    background-color: var(--bg-primary);
+    height: 100%;
+    margin:0;
+    border-radius: 0;
+    border: none;
 }
 
 .placeholder {
     display: flex;
+    flex-direction: column;
     justify-content: center;
     align-items: center;
-    height: 100%;
-    font-size: 1.2em;
-    color: #666;
+    flex-grow: 1;
+    color: var(--text-tertiary);
+    font-size: 1.1rem;
+    text-align: center;
+    background-color: var(--bg-secondary);
+    border-radius: 4px;
+    padding: 1rem;
 }
+.placeholder .icon {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+}
+.error-placeholder .icon { color: var(--status-warning-text); }
+
+
+/* --- Forms --- */
+.filter-form {
+    margin-bottom: 1.5rem;
+}
+.form-group {
+    margin-bottom: 1rem;
+}
+.form-group label {
+    display: block;
+    font-weight: 700;
+    color: var(--text-secondary);
+    margin-bottom: 0.35rem;
+    font-size: 0.9rem;
+}
+input[type="text"],
+select {
+    width: 100%;
+    padding: 0.6rem 0.8rem;
+    background-color: var(--bg-tertiary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color-medium);
+    border-radius: 4px;
+    font-size: 0.95rem;
+    line-height: 1.5;
+}
+input[type="text"]:focus,
+select:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 0 3px var(--focus-glow-color);
+}
+select {
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='%23cccccc' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.7rem center;
+    background-size: 1em;
+    padding-right: 2.5rem;
+}
+
+
+.form-actions {
+    margin-top: 1.5rem;
+    display: flex;
+    gap: 0.75rem;
+}
+.btn {
+    padding: 0.7rem 1.2rem;
+    font-size: 0.95rem;
+    font-weight: 700;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.2s ease, transform 0.1s ease, color 0.2s ease;
+    text-align: center;
+    flex-grow: 1;
+    display: inline-flex; /* Für Icon + Text Buttons */
+    align-items: center;
+    justify-content: center;
+    gap: 0.5em;
+}
+.btn-primary {
+    background-color: var(--accent-primary);
+    color: #ffffff;
+}
+.btn-primary:hover, .btn-primary:focus {
+    background-color: var(--accent-primary-darker-hover);
+    color: #ffffff;
+    text-decoration: none;
+}
+.btn-secondary {
+    background-color: var(--bg-tertiary-alt);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color-medium);
+}
+.btn-secondary:hover, .btn-secondary:focus {
+    background-color: var(--border-color-dark);
+    color: var(--text-primary);
+    text-decoration: none;
+}
+.btn:active {
+    transform: scale(0.98);
+}
+
+/* NEU: Copy Button Styling */
+.btn-copy {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.85rem;
+    background-color: var(--bg-tertiary);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color-medium);
+    flex-grow: 0; /* Nicht wachsen lassen */
+    flex-shrink: 0; /* Nicht schrumpfen lassen */
+}
+.btn-copy:hover, .btn-copy:focus {
+    background-color: var(--border-color-dark);
+    color: var(--text-primary);
+    border-color: var(--border-color-light);
+}
+.btn-copy svg.icon-copy {
+    width: 1em; /* SVG-Größe relativ zur Schriftgröße des Buttons */
+    height: 1em;
+    /* fill: currentColor; ist Standard und nimmt die Textfarbe des Buttons */
+}
+
+
+/* Level and Status Indicators */
+.level-indicator, .status-indicator, .tag-label {
+    padding: 0.15em 0.5em;
+    border-radius: 3px;
+    font-size: 0.8em;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.level-critical, .level-high { background-color: var(--status-error-bg); color: var(--status-error-text); }
+.level-medium { background-color: transparent; color: var(--status-warning-text); border: 1px solid var(--status-warning-text); }
+.level-low { background-color: transparent; color: var(--status-info-text); border: 1px solid var(--status-info-text); }
+.level-informational { background-color: var(--status-unknown-bg); color: var(--status-unknown-text); }
+
+.status-stable { background-color: var(--status-success-bg); color: var(--status-success-text); }
+.status-experimental { background-color: var(--status-warning-bg-flash); color: var(--status-warning-text-flash); }
+.status-deprecated { background-color: var(--status-notfound-bg); color: var(--status-notfound-text); }
+.status-test { background-color: var(--bg-tertiary); color: var(--text-secondary); border: 1px solid var(--border-color-medium); }
+
+
+/* --- Metadata Table --- */
+.metadata-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--font-size-table);
+}
+.metadata-table th,
+.metadata-table td {
+    padding: 0.6rem;
+    border: 1px solid var(--border-color-medium);
+    vertical-align: top;
+    text-align: left;
+    word-wrap: break-word;
+}
+.metadata-table th {
+    background-color: var(--bg-tertiary);
+    color: var(--text-secondary);
+    font-weight: 700;
+    width: 25%;
+}
+.metadata-table td pre {
+    margin: -0.6rem;
+    border-radius: 0;
+    border: none;
+    background-color: var(--bg-primary);
+}
+.references-list {
+    list-style: disc;
+    padding-left: 1.2rem;
+    margin: 0;
+}
+.references-list li { margin-bottom: 0.25rem; }
+.tag-label {
+    background-color: var(--bg-tertiary-alt);
+    color: var(--text-secondary);
+    margin-right: 0.3rem;
+    margin-bottom: 0.3rem;
+    display: inline-block;
+}
+.hash-value {
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+    font-size: 0.9em;
+    color: var(--text-tertiary);
+    word-break: break-all;
+}
+
+
+/* --- Responsive Adjustments (Basic) --- */
+@media (max-width: 992px) {
+    .sidebar {
+        min-width: 280px;
+        width: 35%;
+    }
+    .main-content-area {
+        width: 65%;
+    }
+    .metadata-table th {
+        width: 30%;
+    }
+}
+
+@media (max-width: 768px) {
+    .app-container {
+        flex-direction: column;
+        overflow: auto;
+    }
+    .sidebar, .main-content-area {
+        width: 100%;
+        max-width: 100%;
+        border-right: none;
+    }
+    .sidebar {
+        border-bottom: 1px solid var(--border-color-dark);
+        max-height: 45vh;
+    }
+    .main-content-area {
+         padding-top: 0.5rem;
+         overflow-y: visible;
+    }
+
+    .metadata-container,
+    .rule-display-container {
+        flex-basis: auto;
+        height: auto;
+    }
+    .metadata-container { overflow: visible; }
+    .rule-display-container { max-height: 60vh; }
+
+    .form-actions { flex-direction: column; }
+    .btn { width: 100%; }
+    .content-header { flex-wrap: wrap; } /* Erlaubt Umbruch für Button */
+    .content-header .btn-copy { margin-top: 0.5rem; width: 100%;}
+
+}
+
+/* --- NEU: Scrollbar Styling --- */
+/* Für Webkit-Browser (Chrome, Safari, Edge, Opera) */
+::-webkit-scrollbar {
+    width: 10px; /* Breite des vertikalen Scrollbalkens */
+    height: 10px; /* Höhe des horizontalen Scrollbalkens */
+}
+
+::-webkit-scrollbar-track {
+    background: var(--scrollbar-track-color);
+    border-radius: 5px; /* Optional: abgerundete Ecken für den Track */
+}
+/* Optional: Track-Styling beim Hovern über den Scrollbereich (nicht der Thumb) */
+/*
+*:hover::-webkit-scrollbar-track {
+    background: var(--scrollbar-track-hover-color);
+}
+*/
+
+::-webkit-scrollbar-thumb {
+    background-color: var(--scrollbar-thumb-color);
+    border-radius: 5px;
+    border: 2px solid var(--scrollbar-track-color); /* Erzeugt einen kleinen "Rand" um den Thumb */
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background-color: var(--scrollbar-thumb-hover-color);
+}
+
+::-webkit-scrollbar-corner { /* Die Ecke, wo sich vertikale und horizontale Scrollbalken treffen */
+    background: var(--scrollbar-track-color);
+}
+
+/* Für Firefox */
+/* Betrifft alle Elemente, die Scrollbalken haben könnten und auf die diese Regel zutrifft */
+.rule-list,
+.main-content-area,
+.metadata-container,
+.rule-raw-content,
+pre { /* pre hat overflow-x: auto */
+    scrollbar-width: thin; /* Oder 'auto' für Standardbreite, aber mit Farben */
+    scrollbar-color: var(--scrollbar-thumb-color) var(--scrollbar-track-color);
+}
+
+/* Optional: Feineres Targeting für Firefox, falls nicht alle 'pre' Elemente so gestylt werden sollen */
+/*
+.rule-list, .main-content-area, .metadata-container, .rule-raw-content, .rule-raw-content pre {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb-color) var(--scrollbar-track-color);
+}
+*/

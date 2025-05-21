@@ -1,21 +1,30 @@
 [
   {
-    "name": "SigmaHQ - Generic Service Execution",
-    "url": "https://raw.githubusercontent.com/SigmaHQ/sigma/master/rules/windows/process_creation/proc_creation_win_lolbas_sc_exe.yml",
-    "type": "single_file_yaml",
-    "enabled": true
-  },
-  {
-    "name": "SigmaHQ - LOLBAS UCM INetMgrCom Exec",
-    "url": "https://raw.githubusercontent.com/SigmaHQ/sigma/master/rules/windows/process_creation/proc_creation_win_lolbas_ucm_inetmgr_com_exec.yml",
-    "type": "single_file_yaml",
-    "enabled": true
-  },
-  {
     "name": "SigmaHQ - Windows Process Creation Rules",
     "url": "https://api.github.com/repos/SigmaHQ/sigma/contents/rules/windows/process_creation",
     "base_raw_url": "https://raw.githubusercontent.com/SigmaHQ/sigma/master/",
     "type": "github_repo_folder",
-    "enabled": true
+    "enabled": false
+  },
+  {
+    "name": "SigmaHQ Rules (Full Repo)",
+    "url": "https://api.github.com/repos/SigmaHQ/sigma/contents/rules", 
+    "type": "github_repo_folder",
+    "enabled": false,
+    "github_token": "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"
+  },
+  {
+    "name": "JoeSecurity Sigma Rules",
+    "url": "https://api.github.com/repos/joesecurity/sigma-rules/contents/",
+    "type": "github_repo_folder",
+    "enabled": true,
+    "github_token": "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" 
+  },
+  {
+    "name": "TSale Sigma Rules",
+    "url": "https://api.github.com/repos/tsale/Sigma_rules/contents/",
+    "type": "github_repo_folder",
+    "enabled": true,
+    "github_token": "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" 
   }
 ]

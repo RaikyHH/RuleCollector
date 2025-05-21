@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sigma Regel Repository - ARTIFAKT</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar">
+            <header class="sidebar-header">
+                <h1 class="app-title">Sigma Repository</h1>
+            </header>
+
+            <form method="get" action="{{ url_for('index') }}" class="filter-form">
+                <div class="form-group">
+                    <label for="search">Suche</label>
+                    <input type="text" name="search" id="search" placeholder="Titel, ID, Beschreibung..." value="{{ search_query or '' }}">
+                </div>
+                <div class="form-group">
+                    <label for="mitre_id">MITRE ID</label>
+                    <input type="text" name="mitre_id" id="mitre_id" placeholder="z.B. attack.t1059" value="{{ mitre_id_query or '' }}">
+                </div>
+                <div class="form-group">
+                    <label for="level">Level</label>
+                    <select name="level" id="level">
+                        <option value="">Alle Level</option>
+                        {% for lvl in distinct_levels %}
+                        <option value="{{ lvl }}" {% if lvl == level_query %}selected{% endif %}>{{ lvl|capitalize }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="status">Status</label>
+                    <select name="status" id="status">
+                        <option value="">Alle Status</option>
+                        {% for stat in distinct_statuses %}
+                        <option value="{{ stat }}" {% if stat == status_query %}selected{% endif %}>{{ stat|capitalize }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">Filtern</button>
+                    <button type="button" class="btn btn-secondary" onclick="window.location.href='{{ url_for('index') }}'">Reset</button>
+                </div>
+            </form>
+
+            <h2 class="rules-heading">Regeln</h2>
+            <ul class="rule-list">
+                {% for rule in rules %}
+                <li class="rule-item {% if rule.id == selected_rule_id %}active{% endif %}">
+                    <a href="{{ url_for('get_rule_details_page', rule_id=rule.id, search=search_query, mitre_id=mitre_id_query, level=level_query, status=status_query) }}">
+                        <span class="rule-title">{{ rule.title }}</span>
+                        <span class="rule-indicators">
+                            {% if rule.level %}
+                            <span class="level-indicator level-{{ rule.level|lower }}">{{ rule.level|capitalize }}</span>
+                            {% endif %}
+                            {% if rule.status %}
+                            <span class="status-indicator status-{{ rule.status|lower }}">{{ rule.status|capitalize }}</span>
+                            {% endif %}
+                        </span>
+                    </a>
+                </li>
+                {% else %}
+                <li class="no-rules">Keine Regeln für die aktuellen Filter gefunden.</li>
+                {% endfor %}
+            </ul>
+        </aside>
+
+        <main class="main-content-area">
+            {% if error_message %}
+            <div class="placeholder error-placeholder">
+                 <span class="icon">⚠️</span> {{ error_message }}
+            </div>
+            {% endif %}
+
+            {% if selected_rule %}
+                <section class="metadata-container">
+                    <header class="content-header">
+                        <h3>Metadaten</h3>
+                    </header>
+                    <table class="metadata-table">
+                        <tbody>
+                            <tr><th>ID</th><td>{{ selected_rule.id }}</td></tr>
+                            <tr><th>Status</th><td><span class="status-indicator status-{{ selected_rule.status|lower }}">{{ selected_rule.status | capitalize }}</span></td></tr>
+                            <tr><th>Level</th><td><span class="level-indicator level-{{ selected_rule.level|lower }}">{{ selected_rule.level | capitalize }}</span></td></tr>
+                            <tr><th>Beschreibung</th><td>{{ selected_rule.description | default('N/A', true) }}</td></tr>
+                            <tr><th>Autor</th><td>{{ selected_rule.author | default('N/A', true) }}</td></tr>
+                            <tr>
+                                <th>Tags</th>
+                                <td>
+                                    {% set tags = selected_rule.tags | fromjson %}
+                                    {% if tags %}
+                                        {% for tag in tags %}
+                                        <span class="tag-label">{{ tag }}</span>
+                                        {% endfor %}
+                                    {% else %} N/A {% endif %}
+                                </td>
+                            </tr>
+                            <tr><th>Log Source</th><td>{{ selected_rule.logsource_product | default('', true) }} ({{ selected_rule.logsource_category | default('N/A', true) }})</td></tr>
+                            <tr>
+                                <th>Referenzen</th>
+                                <td>
+                                    {% set refs = selected_rule.references | fromjson %}
+                                    {% if refs %}
+                                    <ul class="references-list">
+                                        {% for ref_item in refs %}
+                                        <li><a href="{{ ref_item }}" target="_blank" rel="noopener noreferrer">{{ ref_item }}</a></li>
+                                        {% endfor %}
+                                    </ul>
+                                    {% else %} N/A {% endif %}
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>Detection</th>
+                                <td><pre><code>{{ selected_rule.detection | pretty_json_format }}</code></pre></td>
+                            </tr>
+                            <tr>
+                                <th>False Positives</th>
+                                <td><pre><code>{{ selected_rule.falsepositives | pretty_json_format }}</code></pre></td>
+                            </tr>
+                            <tr><th>Quelle (Name)</th><td>{{ selected_rule.source_name }}</td></tr>
+                            <tr><th>Quelle (URL)</th><td><a href="{{ selected_rule.source_url }}" target="_blank" rel="noopener noreferrer">{{ selected_rule.source_url }}</a></td></tr>
+                            <tr><th>Zuerst gesehen</th><td>{{ selected_rule.first_seen_at | format_datetime }}</td></tr>
+                            <tr><th>Zuletzt aktualisiert</th><td>{{ selected_rule.last_updated_at | format_datetime }}</td></tr>
+                            <tr><th>Regel Hash (SHA256)</th><td class="hash-value">{{ selected_rule.rule_hash }}</td></tr>
+                        </tbody>
+                    </table>
+                </section>
+
+                <section class="rule-display-container">
+                    <header class="content-header">
+                        <h3>Regel: {{ selected_rule.title }}</h3>
+                        <button class="btn btn-copy" id="copyRuleButton" title="Regelinhalt kopieren" aria-label="Regelinhalt in Zwischenablage kopieren">
+                            <svg class="icon-copy" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="1em" height="1em" aria-hidden="true"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
+                            <span class="btn-copy-text">Kopieren</span>
+                        </button>
+                    </header>
+                    <div class="rule-raw-content">
+                        <pre><code id="ruleYamlContent">{{ selected_rule.raw_rule }}</code></pre> {# ID hinzugefügt für einfacheren Zugriff durch JS #}
+                    </div>
+                </section>
+
+            {% elif not error_message %}
+            <div class="placeholder">
+                <span class="icon">ℹ️</span> Bitte wählen Sie eine Regel aus der Liste links, um deren Details anzuzeigen.
+            </div>
+            {% endif %}
+        </main>
+    </div>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
