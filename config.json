@@ -26,5 +26,54 @@
     "type": "github_repo_folder",
     "enabled": true,
     "github_token": "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" 
+  },
+  {
+    "name": "Wazuh Sigma Rules",
+    "url": "https://api.github.com/repos/socfortress/Wazuh-Rules/contents/",
+    "type": "github_repo_folder",
+    "enabled": true,
+    "github_token": "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" 
+  },
+  {
+    "name": "LOLDrivers Sigma Rules",
+    "url": "https://api.github.com/repos/magicsword-io/LOLDrivers/contents/",
+    "type": "github_repo_folder",
+    "enabled": true,
+    "github_token": "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" 
+  },
+  {
+    "name": "Yamato Security Sigma Rules",
+    "url": "https://api.github.com/repos/Yamato-Security/hayabusa-rules/contents/",
+    "type": "github_repo_folder",
+    "enabled": true,
+    "github_token": "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" 
+  },
+  {
+    "name": "Azure Sentinel Sigma Rules",
+    "url": "https://api.github.com/repos/Azure/Azure-Sentinel/contents/",
+    "type": "github_repo_folder",
+    "enabled": true,
+    "github_token": "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" 
+  },
+  {
+    "name": "LOLRMM Sigma Rules",
+    "url": "https://api.github.com/repos/magicsword-io/LOLRMM/contents/",
+    "type": "github_repo_folder",
+    "enabled": true,
+    "github_token": "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" 
+  },
+  {
+    "name": "mdecrevoisier Sigma Rules",
+    "url": "https://api.github.com/repos/mdecrevoisier/SIGMA-detection-rules/contents/",
+    "type": "github_repo_folder",
+    "enabled": true,
+    "github_token": "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" 
+  },
+  {
+    "name": "SamuraiMDR Sigma Rules",
+    "url": "https://api.github.com/repos/SamuraiMDR/sigma-rules/contents/",
+    "type": "github_repo_folder",
+    "enabled": true,
+    "github_token": "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" 
   }
 ]

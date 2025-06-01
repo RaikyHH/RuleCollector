@@ -172,3 +172,9 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+
+# project related files and folders
+sigma_rules.db
+config.json
+sigma_rules_files/
