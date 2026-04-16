@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Collection — RuleCollector</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <nav class="nav-tabs" aria-label="Primary">
+        <div class="nav-brand">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <path d="M12 2L4 6v6c0 5 3.5 9.3 8 10.3C16.5 21.3 20 17 20 12V6l-8-4z" fill="#7d212b" opacity="0.25"/>
+                <path d="M12 2L4 6v6c0 5 3.5 9.3 8 10.3C16.5 21.3 20 17 20 12V6l-8-4z" stroke="#7d212b" stroke-width="1.5" stroke-linejoin="round"/>
+                <path d="M9 12l2 2 4-4" stroke="#c0404e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span class="nav-brand-name">RuleCollector</span>
+        </div>
+        <a href="{{ url_for('index') }}" class="nav-tab">Rules</a>
+        <a href="{{ url_for('sources_page') }}" class="nav-tab">Sources</a>
+        <a href="{{ url_for('heatmap_page') }}" class="nav-tab">Heatmap</a>
+        <a href="{{ url_for('collection_page') }}" class="nav-tab active">Collection</a>
+        <a href="{{ url_for('tide_page') }}" class="nav-tab">Tide</a>
+        <a href="{{ url_for('decay_config_page') }}" class="nav-tab">Decay</a>
+    </nav>
+
+    <div class="page-container">
+        <div class="page-inner">
+            <h1 class="page-title">Bookmark Collection</h1>
+            <p class="page-subtitle">
+                {% if is_shared_view %}
+                Viewing a shared collection of {{ shared_rules|length }} rules. These are not saved to your local bookmarks.
+                {% else %}
+                Rules you've starred from the detail view. Bookmarks are stored locally in your browser.
+                {% endif %}
+            </p>
+
+            <section class="card">
+                <div class="card-header">
+                    <span class="card-label" id="collectionLabel">Bookmarks</span>
+                    <div class="collection-actions">
+                        {% if is_shared_view %}
+                        <button type="button" class="btn btn-secondary" id="importSharedBtn">Import to my bookmarks</button>
+                        <a href="{{ url_for('collection_page') }}" class="btn btn-secondary">View my bookmarks</a>
+                        {% else %}
+                        <button type="button" class="btn btn-secondary" id="shareBtn">Share</button>
+                        <button type="button" class="btn btn-secondary" id="exportBtn">Export YAML</button>
+                        <button type="button" class="btn btn-secondary" id="clearBtn">Clear All</button>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="card-body" id="collectionBody">
+                    {% if is_shared_view and shared_rules %}
+                    <ul class="collection-list">
+                        {% for r in shared_rules %}
+                        <li class="collection-item" data-id="{{ r.id }}">
+                            <a href="{{ url_for('get_rule_details_page', rule_id=r.id) }}" class="collection-link">
+                                <span class="collection-title">{{ r.title }}</span>
+                                <span class="collection-meta">
+                                    {% if r.level %}
+                                    <span class="level-indicator level-{{ r.level|lower }}">{{ r.level|upper }}</span>
+                                    {% endif %}
+                                    {% if r.status %}
+                                    <span class="status-indicator status-{{ r.status|lower }}">{{ r.status|capitalize }}</span>
+                                    {% endif %}
+                                </span>
+                            </a>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <div id="collectionLoading" class="collection-empty">Loading…</div>
+                    {% endif %}
+                </div>
+            </section>
+
+            <div id="shareBox" class="share-box" hidden>
+                <div class="share-label">Share URL</div>
+                <div class="share-row">
+                    <input type="text" id="shareUrl" readonly class="text-field">
+                    <button type="button" class="btn btn-primary" id="copyShareBtn">Copy</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    (function () {
+        'use strict';
+        const LS_KEY = 'rc_bookmarks';
+        const IS_SHARED = {{ 'true' if is_shared_view else 'false' }};
+        const SHARED_IDS = {{ shared_ids|tojson }};
+
+        function getBookmarks() {
+            try {
+                return JSON.parse(localStorage.getItem(LS_KEY) || '[]');
+            } catch (e) { return []; }
+        }
+        function setBookmarks(ids) {
+            localStorage.setItem(LS_KEY, JSON.stringify(ids));
+        }
+        function esc(s) {
+            return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        }
+
+        const levelShort = {critical:'CRIT', high:'HIGH', medium:'MED', low:'LOW', informational:'INFO'};
+
+        function renderRules(rules) {
+            const body = document.getElementById('collectionBody');
+            const label = document.getElementById('collectionLabel');
+            if (label) label.textContent = (rules.length) + ' rule' + (rules.length === 1 ? '' : 's');
+            if (!rules.length) {
+                body.innerHTML = '<div class="collection-empty">No bookmarks yet. Star a rule from its detail page to collect it here.</div>';
+                return;
+            }
+            const html = '<ul class="collection-list">' + rules.map(r => {
+                const lvl = (r.level || '').toLowerCase();
+                const st  = (r.status || '').toLowerCase();
+                const levelBadge = lvl ? `<span class="level-indicator level-${esc(lvl)}">${esc(levelShort[lvl] || (r.level||'').toUpperCase())}</span>` : '';
+                const statusBadge = st ? `<span class="status-indicator status-${esc(st)}">${esc((r.status||'').charAt(0).toUpperCase()+(r.status||'').slice(1))}</span>` : '';
+                return `
+                <li class="collection-item" data-id="${esc(r.id)}">
+                    <a href="/rule/${encodeURIComponent(r.id)}" class="collection-link">
+                        <span class="collection-title">${esc(r.title)}</span>
+                        <span class="collection-meta">${levelBadge}${statusBadge}</span>
+                    </a>
+                    ${IS_SHARED ? '' : `<button class="btn-unstar" data-unstar="${esc(r.id)}" title="Remove from bookmarks">&#9733;</button>`}
+                </li>`;
+            }).join('') + '</ul>';
+            body.innerHTML = html;
+
+            if (!IS_SHARED) {
+                body.querySelectorAll('[data-unstar]').forEach(btn => {
+                    btn.addEventListener('click', function () {
+                        const id = this.dataset.unstar;
+                        const current = getBookmarks().filter(x => x !== id);
+                        setBookmarks(current);
+                        fetchAndRender(current);
+                    });
+                });
+            }
+        }
+
+        function fetchAndRender(ids) {
+            if (!ids.length) {
+                renderRules([]);
+                return;
+            }
+            fetch('/api/bookmarks/batch', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ids })
+            })
+            .then(r => r.json())
+            .then(rules => {
+                // preserve bookmark order
+                const byId = Object.create(null);
+                rules.forEach(r => { byId[r.id] = r; });
+                const ordered = ids.map(id => byId[id]).filter(Boolean);
+                renderRules(ordered);
+            })
+            .catch(() => {
+                document.getElementById('collectionBody').innerHTML =
+                    '<div class="collection-empty">Failed to load bookmarks.</div>';
+            });
+        }
+
+        // Initial load
+        if (!IS_SHARED) {
+            fetchAndRender(getBookmarks());
+        }
+
+        // Import-from-shared
+        const importBtn = document.getElementById('importSharedBtn');
+        if (importBtn) {
+            importBtn.addEventListener('click', function () {
+                const existing = new Set(getBookmarks());
+                SHARED_IDS.forEach(id => existing.add(id));
+                setBookmarks(Array.from(existing));
+                importBtn.textContent = 'Imported!';
+                importBtn.disabled = true;
+            });
+        }
+
+        // Share
+        const shareBtn = document.getElementById('shareBtn');
+        const shareBox = document.getElementById('shareBox');
+        const shareUrlInput = document.getElementById('shareUrl');
+        if (shareBtn) {
+            shareBtn.addEventListener('click', function () {
+                const ids = getBookmarks();
+                if (!ids.length) { alert('No bookmarks to share.'); return; }
+                const encoded = btoa(JSON.stringify(ids))
+                    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+                const url = window.location.origin + '/collection?ids=' + encoded;
+                shareUrlInput.value = url;
+                shareBox.hidden = false;
+            });
+        }
+        const copyShareBtn = document.getElementById('copyShareBtn');
+        if (copyShareBtn) {
+            copyShareBtn.addEventListener('click', function () {
+                shareUrlInput.select();
+                navigator.clipboard.writeText(shareUrlInput.value).then(() => {
+                    copyShareBtn.textContent = 'Copied!';
+                    setTimeout(() => copyShareBtn.textContent = 'Copy', 1500);
+                });
+            });
+        }
+
+        // Clear
+        const clearBtn = document.getElementById('clearBtn');
+        if (clearBtn) {
+            clearBtn.addEventListener('click', function () {
+                if (!confirm('Remove all bookmarks?')) return;
+                setBookmarks([]);
+                fetchAndRender([]);
+            });
+        }
+
+        // Export YAML bundle of bookmarks
+        const exportBtn = document.getElementById('exportBtn');
+        if (exportBtn) {
+            exportBtn.addEventListener('click', function () {
+                const ids = getBookmarks();
+                if (!ids.length) { alert('No bookmarks to export.'); return; }
+                // Fetch each rule's raw_rule and concat
+                Promise.all(ids.map(id =>
+                    fetch('/api/rule/' + encodeURIComponent(id)).then(r => r.ok ? r.json() : null)
+                )).then(rules => {
+                    const bundle = rules.filter(Boolean).map(r => r.raw_rule || '').filter(Boolean).join('\n---\n');
+                    const blob = new Blob([bundle], { type: 'text/plain' });
+                    const a = document.createElement('a');
+                    a.href = URL.createObjectURL(blob);
+                    a.download = 'bookmarks_bundle.yml';
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                });
+            });
+        }
+    })();
+    </script>
+</body>
+</html>

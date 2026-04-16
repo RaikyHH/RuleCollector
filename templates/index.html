@@ -1,0 +1,1593 @@
+{% set level_short = {'critical': 'CRIT', 'high': 'HIGH', 'medium': 'MED', 'low': 'LOW', 'informational': 'INFO'} %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RuleCollector — Sigma Rule Repository</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <nav class="nav-tabs" aria-label="Primary">
+        <div class="nav-brand">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <path d="M12 2L4 6v6c0 5 3.5 9.3 8 10.3C16.5 21.3 20 17 20 12V6l-8-4z" fill="#7d212b" opacity="0.25"/>
+                <path d="M12 2L4 6v6c0 5 3.5 9.3 8 10.3C16.5 21.3 20 17 20 12V6l-8-4z" stroke="#7d212b" stroke-width="1.5" stroke-linejoin="round"/>
+                <path d="M9 12l2 2 4-4" stroke="#c0404e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span class="nav-brand-name">RuleCollector</span>
+        </div>
+        <a href="{{ url_for('index') }}" class="nav-tab active">Rules<span id="newBadge" class="nav-new-badge" style="display:none"></span></a>
+        <a href="{{ url_for('sources_page') }}" class="nav-tab">Sources</a>
+        <a href="{{ url_for('heatmap_page') }}" class="nav-tab">Heatmap</a>
+        <a href="{{ url_for('collection_page') }}" class="nav-tab">Collection</a>
+        <a href="{{ url_for('tide_page') }}" class="nav-tab">Tide</a>
+        <a href="{{ url_for('decay_config_page') }}" class="nav-tab">Decay</a>
+        <div class="nav-right">
+            {% if rule_count is not none %}
+            <div class="nav-stat"><b>DB:</b> {{ '{:,}'.format(rule_count) }} rules</div>
+            {% endif %}
+            <a href="{{ url_for('export_rules', search=search_query, mitre_id=mitre_id_query, level=level_query, status=status_query) }}" class="btn btn-secondary nav-export-btn" title="Export filtered rules as YAML bundle">Export</a>
+        </div>
+    </nav>
+
+    <div class="app-container">
+        <aside class="sidebar">
+            {# Hidden inputs carrying current filter state for form submission #}
+            <form method="get" action="{{ url_for('index') }}" class="sidebar-inner" id="filterForm">
+                <input type="hidden" name="level"    id="hiddenLevel"    value="{{ level_query or '' }}">
+                <input type="hidden" name="status"   id="hiddenStatus"   value="{{ status_query or '' }}">
+                <input type="hidden" name="show_decayed" id="hiddenDecayed" value="{{ '1' if show_decayed else '' }}">
+                <input type="hidden" name="product"  id="hiddenProduct"  value="{{ product_query or '' }}">
+                <input type="hidden" name="category" id="hiddenCategory" value="{{ category_query or '' }}">
+                <input type="hidden" name="source"   id="hiddenSource"   value="{{ source_query or '' }}">
+                <input type="hidden" name="author"   id="hiddenAuthor"   value="{{ author_query or '' }}">
+                <input type="hidden" name="mitre_id" id="hiddenMitreId"  value="{{ mitre_id_query or '' }}">
+
+                {# Search #}
+                <div class="search-wrap">
+                    <svg class="search-icon" width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                        <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398l3.85 3.85a1 1 0 0 0 1.415-1.415l-3.868-3.833zm-5.242 1.156a5 5 0 1 1 0-10 5 5 0 0 1 0 10z"/>
+                    </svg>
+                    <input type="text" name="search" id="search" class="search-input" placeholder="Search rules…" value="{{ search_query or '' }}" autocomplete="off">
+                </div>
+
+                {# Level chips #}
+                <div class="filter-section-label">Level</div>
+                <div class="fchip-group" id="levelChips">
+                    <button type="button" class="fchip fchip-crit {% if level_query == 'critical' %}is-active{% endif %}"       data-param="level" data-val="critical">CRIT</button>
+                    <button type="button" class="fchip fchip-high {% if level_query == 'high' %}is-active{% endif %}"            data-param="level" data-val="high">HIGH</button>
+                    <button type="button" class="fchip fchip-med  {% if level_query == 'medium' %}is-active{% endif %}"          data-param="level" data-val="medium">MED</button>
+                    <button type="button" class="fchip fchip-low  {% if level_query == 'low' %}is-active{% endif %}"             data-param="level" data-val="low">LOW</button>
+                    <button type="button" class="fchip fchip-info {% if level_query == 'informational' %}is-active{% endif %}"   data-param="level" data-val="informational">INFO</button>
+                </div>
+
+                {# Status chips (Sigma rule status field) #}
+                <div class="filter-section-label">Rule Status</div>
+                <div class="fchip-group" id="statusChips">
+                    <button type="button" class="fchip fchip-stable       {% if status_query == 'stable' %}is-active{% endif %}"       data-param="status" data-val="stable">Stable</button>
+                    <button type="button" class="fchip fchip-experimental {% if status_query == 'experimental' %}is-active{% endif %}" data-param="status" data-val="experimental">Exp.</button>
+                    <button type="button" class="fchip fchip-deprecated   {% if status_query == 'deprecated' %}is-active{% endif %}"   data-param="status" data-val="deprecated">Depr.</button>
+                    <button type="button" class="fchip fchip-test         {% if status_query == 'test' %}is-active{% endif %}"         data-param="status" data-val="test">Test</button>
+                </div>
+
+                {# Decay visibility toggle — completely separate from Sigma's rule status field #}
+                <div class="filter-section-label" style="margin-top:10px">Aged Rules</div>
+                <div class="fchip-group">
+                    <button type="button" class="fchip fchip-decayed {% if show_decayed %}is-active{% endif %}" id="decayedChip"
+                        title="Aged rules (past the hide threshold) are hidden by default. Toggle to include them.">
+                        {% if show_decayed %}⏳ Incl. aged rules{% else %}⏳ Show aged rules{% endif %}
+                    </button>
+                </div>
+
+                {# More filters toggle #}
+                <button type="button" class="more-filters-toggle {% if product_query or category_query or source_query or author_query or mitre_id_query %}is-open{% endif %}" id="moreFiltersToggle">
+                    <span class="mft-arrow">▾</span> More filters
+                    {% if product_query or category_query or source_query or author_query or mitre_id_query %}
+                    <span style="color:var(--accent-primary-hover);margin-left:4px">●</span>
+                    {% endif %}
+                </button>
+                <div class="more-filters-body {% if product_query or category_query or source_query or author_query or mitre_id_query %}is-open{% endif %}" id="moreFiltersBody">
+                    <div class="mf-field">
+                        <label class="mf-label" for="mfProduct">Product</label>
+                        <input class="mf-input" id="mfProduct" type="text" placeholder="e.g. windows" value="{{ product_query or '' }}" autocomplete="off">
+                    </div>
+                    <div class="mf-field">
+                        <label class="mf-label" for="mfCategory">Category</label>
+                        <input class="mf-input" id="mfCategory" type="text" placeholder="e.g. process_creation" value="{{ category_query or '' }}" autocomplete="off">
+                    </div>
+                    <div class="mf-field">
+                        <label class="mf-label" for="mfSource">Source</label>
+                        <select class="mf-input" id="mfSource">
+                            <option value="">All sources</option>
+                            {% for src in distinct_sources %}
+                            <option value="{{ src }}" {% if src == source_query %}selected{% endif %}>{{ src }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mf-field">
+                        <label class="mf-label" for="mfAuthor">Author</label>
+                        <input class="mf-input" id="mfAuthor" type="text" placeholder="Author name" value="{{ author_query or '' }}" autocomplete="off">
+                    </div>
+                    <div class="mf-field">
+                        <label class="mf-label" for="mfMitreId">MITRE ID / Tag</label>
+                        <input class="mf-input" id="mfMitreId" type="text" placeholder="e.g. attack.t1059" value="{{ mitre_id_query or '' }}" autocomplete="off">
+                    </div>
+                </div>
+
+                {# Active pills + count/clear row #}
+                <div id="activePills" class="active-pills"></div>
+
+                <div class="filter-meta-row">
+                    <span class="rule-count-label" id="ruleCountLabel">{{ rules|length }} rule{{ '' if rules|length == 1 else 's' }}</span>
+                    <a href="{{ url_for('index') }}" class="filter-clear-link" id="clearAllLink" {% if not (search_query or mitre_id_query or level_query or status_query or product_query or category_query or source_query or author_query or show_decayed) %}hidden{% endif %}>Clear all ×</a>
+                </div>
+            </form>
+
+            {# ---- Grouped sidebar tree ---- #}
+            {% macro render_rule_item(rule) %}
+            {% set updated_ts = rule.last_updated_at %}
+            <li class="rule-item {% if rule.id == selected_rule_id %}active{% endif %}"
+                data-rule-id="{{ rule.id }}"
+                data-title="{{ rule.title|lower }}"
+                data-updated="{{ updated_ts or '' }}">
+                <a href="{{ url_for('get_rule_details_page', rule_id=rule.id, search=search_query, mitre_id=mitre_id_query, level=level_query, status=status_query, product=product_query, category=category_query, source=source_query, author=author_query, show_decayed='1' if show_decayed else '') }}">
+                    <span class="rule-title">{{ rule.title }}</span>
+                    <span class="rule-indicators">
+                        {% if rule.level %}
+                        {% set lvl_key = rule.level|lower %}
+                        <span class="level-indicator level-{{ lvl_key }}">{{ level_short.get(lvl_key, rule.level|upper) }}</span>
+                        {% endif %}
+                        {% if rule.status %}
+                        <span class="status-indicator status-{{ rule.status|lower }}">{{ rule.status|capitalize }}</span>
+                        {% endif %}
+                        {% if rule.logsource_product %}
+                        <span class="product-badge">{{ rule.logsource_product }}</span>
+                        {% endif %}
+                        <span class="updated-badge" hidden></span>
+                    </span>
+                </a>
+            </li>
+            {% endmacro %}
+
+            {# Recursive macro: renders a tree node and its children #}
+            {# depth=0 → top-level cat (cat1-group style), depth>0 → deeper nesting #}
+            {% macro render_tree_node(node, repo, depth) %}
+            <div class="cat-group depth-{{ depth }}" data-repo="{{ repo }}" data-cat="{{ node.name }}">
+                <div class="cat-header depth-{{ depth }}">
+                    <svg class="cat-arrow" viewBox="0 0 10 10" fill="currentColor" aria-hidden="true"><path d="M3 2l4 3-4 3V2z"/></svg>
+                    <span class="cat-name">{{ node.name }}</span>
+                    <span class="cat-count">{{ node.rule_count }}</span>
+                </div>
+                <div class="cat-body">
+                    {% if node.rules %}
+                    <ul class="rule-list cat-rules depth-{{ depth }}">
+                        {% for rule in node.rules %}{{ render_rule_item(rule) }}{% endfor %}
+                    </ul>
+                    {% endif %}
+                    {% for child in node.children %}
+                    {{ render_tree_node(child, repo, depth + 1) }}
+                    {% endfor %}
+                </div>
+            </div>
+            {% endmacro %}
+
+            <div class="sidebar-groups" id="sidebarGroups">
+                {% if grouped_rules %}
+                {% for group in grouped_rules %}
+                {# Repos start collapsed by default; JS will restore localStorage state #}
+                <div class="repo-group" data-repo="{{ group.source }}">
+                    <div class="repo-header">
+                        <svg class="repo-arrow" viewBox="0 0 10 10" fill="currentColor" aria-hidden="true"><path d="M3 2l4 3-4 3V2z"/></svg>
+                        <span class="repo-name">{{ group.source }}</span>
+                        <span class="repo-count">{{ group.rule_count }}</span>
+                    </div>
+                    <div class="repo-body">
+                        {% if group.is_sigmahq %}
+                            {% for child in group.tree.children %}
+                            {{ render_tree_node(child, group.source, 0) }}
+                            {% endfor %}
+                            {% if group.tree.rules %}
+                            <ul class="rule-list cat-rules depth-0">
+                                {% for rule in group.tree.rules %}{{ render_rule_item(rule) }}{% endfor %}
+                            </ul>
+                            {% endif %}
+                        {% else %}
+                            <ul class="rule-list">
+                                {% for rule in group.rules %}{{ render_rule_item(rule) }}{% endfor %}
+                            </ul>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+                {% else %}
+                <div class="no-rules" style="padding:16px 12px;font-size:13px;color:var(--text-subtle);">No rules found for the current filters.</div>
+                {% endif %}
+            </div>
+            {# Keep hidden flat list for JS variant grouping + compatibility #}
+            <ul class="rule-list" id="ruleList" style="display:none" aria-hidden="true">
+                {% for rule in rules %}
+                {% set updated_ts = rule.last_updated_at %}
+                <li class="rule-item {% if rule.id == selected_rule_id %}active{% endif %}"
+                    data-rule-id="{{ rule.id }}"
+                    data-title="{{ rule.title|lower }}"
+                    data-updated="{{ updated_ts or '' }}">
+                </li>
+                {% endfor %}
+            </ul>
+        </aside>
+
+        <main class="main-content-area" id="detailPane">
+            {# SSR: shown on direct page load or hard navigation #}
+            {% if error_message %}
+            <div class="card placeholder-card error-placeholder">
+                <svg class="placeholder-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                    <path d="M12 2L4 6v6c0 5 3.5 9.3 8 10.3C16.5 21.3 20 17 20 12V6l-8-4z" fill="#7d212b" opacity="0.25"/>
+                    <path d="M12 2L4 6v6c0 5 3.5 9.3 8 10.3C16.5 21.3 20 17 20 12V6l-8-4z" stroke="#7d212b" stroke-width="1.5" stroke-linejoin="round"/>
+                </svg>
+                <div class="placeholder-title">{{ error_message }}</div>
+            </div>
+            {% elif selected_rule %}
+                {# Render via JS immediately after — see renderRule() below #}
+            {% else %}
+            <div class="card placeholder-card" id="placeholderCard">
+                <svg class="placeholder-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                    <path d="M12 2L4 6v6c0 5 3.5 9.3 8 10.3C16.5 21.3 20 17 20 12V6l-8-4z" fill="#7d212b" opacity="0.25"/>
+                    <path d="M12 2L4 6v6c0 5 3.5 9.3 8 10.3C16.5 21.3 20 17 20 12V6l-8-4z" stroke="#7d212b" stroke-width="1.5" stroke-linejoin="round"/>
+                    <path d="M9 12l2 2 4-4" stroke="#c0404e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <div class="placeholder-title">Select a rule</div>
+                <div class="placeholder-sub">Choose from the list on the left to view detection details</div>
+            </div>
+            {% endif %}
+        </main>
+    </div>
+
+    {# Inline the SSR rule data so JS can render it without an extra round-trip on direct load #}
+    {% if selected_rule %}
+    <script id="ssrRuleData" type="application/json">{{ selected_rule | tojson_rule }}</script>
+    {% endif %}
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+    <script>
+    (function () {
+    'use strict';
+
+    // ── Shared helpers ───────────────────────────────────────────────────────
+    function esc(s) {
+        return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    // ── Filter state helpers ─────────────────────────────────────────────────
+    function getFilters() {
+        const p = new URLSearchParams(window.location.search);
+        return {
+            search:   p.get('search')   || '',
+            mitre_id: p.get('mitre_id') || '',
+            level:    p.get('level')    || '',
+            status:   p.get('status')   || '',
+            product:  p.get('product')  || '',
+            category: p.get('category') || '',
+            source:   p.get('source')   || '',
+            author:   p.get('author')   || '',
+            show_decayed: p.get('show_decayed') || '',
+        };
+    }
+
+    function submitFilters() {
+        document.getElementById('filterForm').submit();
+    }
+
+    // ── Filter chip logic ────────────────────────────────────────────────────
+    (function () {
+        // Level chips (single-select toggle)
+        document.querySelectorAll('#levelChips .fchip').forEach(btn => {
+            btn.addEventListener('click', function () {
+                const val = this.dataset.val;
+                const hidden = document.getElementById('hiddenLevel');
+                if (hidden.value === val) {
+                    hidden.value = '';
+                    this.classList.remove('is-active');
+                } else {
+                    document.querySelectorAll('#levelChips .fchip').forEach(b => b.classList.remove('is-active'));
+                    hidden.value = val;
+                    this.classList.add('is-active');
+                }
+                submitFilters();
+            });
+        });
+
+        // Status chips (single-select toggle — Sigma rule status only)
+        document.querySelectorAll('#statusChips .fchip').forEach(btn => {
+            btn.addEventListener('click', function () {
+                const val    = this.dataset.val;
+                const hidden = document.getElementById('hiddenStatus');
+                if (hidden.value === val) {
+                    hidden.value = '';
+                    this.classList.remove('is-active');
+                } else {
+                    document.querySelectorAll('#statusChips .fchip').forEach(b => b.classList.remove('is-active'));
+                    hidden.value = val;
+                    this.classList.add('is-active');
+                }
+                submitFilters();
+            });
+        });
+
+        // Decayed chip (separate toggle, separate param)
+        const decayedChip = document.getElementById('decayedChip');
+        if (decayedChip) {
+            decayedChip.addEventListener('click', function () {
+                const hidden = document.getElementById('hiddenDecayed');
+                if (hidden.value === '1') {
+                    hidden.value = '';
+                    this.classList.remove('is-active');
+                } else {
+                    hidden.value = '1';
+                    this.classList.add('is-active');
+                }
+                submitFilters();
+            });
+        }
+
+        // More filters toggle
+        const mfToggle = document.getElementById('moreFiltersToggle');
+        const mfBody   = document.getElementById('moreFiltersBody');
+        if (mfToggle && mfBody) {
+            mfToggle.addEventListener('click', function () {
+                const open = mfBody.classList.toggle('is-open');
+                mfToggle.classList.toggle('is-open', open);
+                try { localStorage.setItem('rc_mf_open', open ? '1' : '0'); } catch(e) {}
+            });
+            // Restore state
+            try { if (localStorage.getItem('rc_mf_open') === '1' && !mfBody.classList.contains('is-open')) {
+                mfBody.classList.add('is-open');
+                mfToggle.classList.add('is-open');
+            }} catch(e) {}
+        }
+
+        // More-filter text inputs: sync to hidden inputs on change/enter
+        function syncMfField(inputId, hiddenId) {
+            const inp = document.getElementById(inputId);
+            const hid = document.getElementById(hiddenId);
+            if (!inp || !hid) return;
+            inp.addEventListener('change', function() { hid.value = this.value.trim(); submitFilters(); });
+            inp.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') { e.preventDefault(); hid.value = this.value.trim(); submitFilters(); }
+            });
+        }
+        syncMfField('mfProduct',  'hiddenProduct');
+        syncMfField('mfCategory', 'hiddenCategory');
+        syncMfField('mfSource',   'hiddenSource');
+        syncMfField('mfAuthor',   'hiddenAuthor');
+        syncMfField('mfMitreId',  'hiddenMitreId');
+
+        // Active filter pills — build from current URL params
+        (function buildPills() {
+            const container = document.getElementById('activePills');
+            if (!container) return;
+            const labels = {
+                level: 'Level', status: 'Status', show_decayed: 'Aged rules',
+                product: 'Product', category: 'Category',
+                source: 'Source', author: 'Author', mitre_id: 'MITRE',
+                search: 'Search',
+            };
+            const p = new URLSearchParams(window.location.search);
+            const pills = [];
+            for (const [key, label] of Object.entries(labels)) {
+                const val = p.get(key);
+                if (!val) continue;
+                const displayVal = key === 'show_decayed' ? 'visible' : val;
+                pills.push({ key, val: displayVal, label });
+            }
+            if (pills.length === 0) { container.style.display = 'none'; return; }
+            container.style.display = 'flex';
+            container.innerHTML = pills.map(pill => {
+                const url = new URL(window.location.href);
+                url.searchParams.delete(pill.key);
+                return `<span class="active-pill">
+                    <span class="active-pill-key">${esc(pill.label)}:</span>
+                    <span class="active-pill-val" title="${esc(pill.val)}">${esc(pill.val)}</span>
+                    <a class="active-pill-x" href="${esc(url.toString())}" title="Remove this filter">×</a>
+                </span>`;
+            }).join('');
+        })();
+
+        // Clear-all link visibility
+        const clearLink = document.getElementById('clearAllLink');
+        const p = new URLSearchParams(window.location.search);
+        const hasFilter = ['search','level','status','show_decayed','product','category','source','author','mitre_id'].some(k => p.get(k));
+        if (clearLink) clearLink.hidden = !hasFilter;
+
+    })();
+
+    // ── Debounced search (submits form after typing pause) ───────────────────
+    (function () {
+        const searchInput = document.getElementById('search');
+        if (!searchInput) return;
+        let timer;
+        searchInput.addEventListener('input', function () {
+            clearTimeout(timer);
+            const q = this.value;
+            timer = setTimeout(function() {
+                document.getElementById('filterForm').submit();
+            }, 600);
+        });
+    })();
+
+    // ── Sidebar: group same-title rules into single entry with variant badge ─
+    (function () {
+        function normTitle(t) { return (t || '').trim().toLowerCase(); }
+        // Only operate on the visible grouped sidebar (not the hidden flat list)
+        const items = Array.from(document.querySelectorAll('#sidebarGroups .rule-item[data-rule-id]'));
+        const groups = new Map(); // normTitle -> [li, ...]
+        items.forEach(li => {
+            const t = normTitle(li.dataset.title || li.querySelector('.rule-title')?.textContent);
+            if (!groups.has(t)) groups.set(t, []);
+            groups.get(t).push(li);
+        });
+        groups.forEach((members, title) => {
+            if (members.length <= 1) return;
+            // Collect all IDs for the group
+            const ids = members.map(li => li.dataset.ruleId);
+            // Keep first member visible, hide the rest (unless one of the others is active)
+            const activeIdx = members.findIndex(li => li.classList.contains('active'));
+            const keeper = activeIdx >= 0 ? members[activeIdx] : members[0];
+            members.forEach(li => {
+                if (li !== keeper) li.style.display = 'none';
+            });
+            keeper.dataset.groupIds = ids.join(',');
+        });
+    })();
+
+    // ── YAML syntax highlighting ─────────────────────────────────────────────
+    function highlightYaml(text) {
+        return text.split('\n').map(line => {
+            if (/^\s*#/.test(line)) return `<span class="y-com">${esc(line)}</span>`;
+            const kv = line.match(/^(\s*)([\w\-]+)(\s*:\s*)(.*)$/);
+            if (kv) {
+                const [, indent, key, colon, rest] = kv;
+                let restHtml = '';
+                if (rest) {
+                    if (/^['"]/.test(rest))                        restHtml = `<span class="y-str">${esc(rest)}</span>`;
+                    else if (/^-?[\d.]+$/.test(rest.trim()))       restHtml = `<span class="y-num">${esc(rest)}</span>`;
+                    else if (/^(true|false|null|~)$/i.test(rest.trim())) restHtml = `<span class="y-num">${esc(rest)}</span>`;
+                    else                                           restHtml = `<span class="y-val">${esc(rest)}</span>`;
+                }
+                return `${esc(indent)}<span class="y-key">${esc(key)}</span><span class="y-sym">${esc(colon)}</span>${restHtml}`;
+            }
+            const li = line.match(/^(\s*-\s+)(.*)$/);
+            if (li) return `<span class="y-sym">${esc(li[1])}</span><span class="y-val">${esc(li[2])}</span>`;
+            return esc(line);
+        }).join('\n');
+    }
+
+    // ── Level / status display maps ──────────────────────────────────────────
+    const LEVEL_SHORT = {critical:'CRIT', high:'HIGH', medium:'MED', low:'LOW', informational:'INFO'};
+
+    function levelBadge(level) {
+        if (!level) return '';
+        const k = level.toLowerCase();
+        return `<span class="level-indicator level-${esc(k)}">${esc(LEVEL_SHORT[k] || level.toUpperCase())}</span>`;
+    }
+    function statusBadge(status) {
+        if (!status) return '<span class="meta-val">N/A</span>';
+        const k = status.toLowerCase();
+        return `<span class="status-indicator status-${esc(k)}">${esc(status.charAt(0).toUpperCase()+status.slice(1))}</span>`;
+    }
+    function fmtDate(iso) {
+        if (!iso) return 'N/A';
+        return iso.replace('T', ' ').slice(0, 19);
+    }
+    function filterUrl(params) {
+        const u = new URLSearchParams();
+        if (params.search)        u.set('search',       params.search);
+        if (params.mitre_id)      u.set('mitre_id',     params.mitre_id);
+        if (params.level)         u.set('level',        params.level);
+        if (params.status)        u.set('status',       params.status);
+        if (params.product)       u.set('product',      params.product);
+        if (params.category)      u.set('category',     params.category);
+        if (params.source)        u.set('source',       params.source);
+        if (params.author)        u.set('author',       params.author);
+        if (params.show_decayed)  u.set('show_decayed', params.show_decayed);
+        return u.toString() ? '?' + u.toString() : '';
+    }
+
+    // ── Bookmark helpers (Feature #9) ────────────────────────────────────────
+    const BOOKMARKS_KEY = 'rc_bookmarks';
+    function getBookmarks() {
+        try { return JSON.parse(localStorage.getItem(BOOKMARKS_KEY) || '[]'); }
+        catch (e) { return []; }
+    }
+    function setBookmarks(ids) {
+        localStorage.setItem(BOOKMARKS_KEY, JSON.stringify(ids));
+    }
+    function isBookmarked(id) {
+        return getBookmarks().indexOf(id) !== -1;
+    }
+    function toggleBookmark(id) {
+        const arr = getBookmarks();
+        const idx = arr.indexOf(id);
+        if (idx === -1) arr.push(id); else arr.splice(idx, 1);
+        setBookmarks(arr);
+        return idx === -1;
+    }
+
+    // ── No-Decay pin helpers ─────────────────────────────────────────────────
+    const NO_DECAY_KEY = 'rc_no_decay';
+    function getNoDecayPins() {
+        try { return JSON.parse(localStorage.getItem(NO_DECAY_KEY) || '[]'); }
+        catch (e) { return []; }
+    }
+    function isNoDecayPinned(id) {
+        return getNoDecayPins().indexOf(id) !== -1;
+    }
+    function toggleNoDecay(id) {
+        const arr = getNoDecayPins();
+        const idx = arr.indexOf(id);
+        if (idx === -1) arr.push(id); else arr.splice(idx, 1);
+        localStorage.setItem(NO_DECAY_KEY, JSON.stringify(arr));
+        return idx === -1;
+    }
+
+    // ── Confidence radar (Feature #10) ───────────────────────────────────────
+    function computeRadar(rule) {
+        const statusMap = { stable: 100, test: 60, experimental: 40, deprecated: 20 };
+        const levelMap  = { critical: 100, high: 75, medium: 50, low: 25, informational: 10, info: 10 };
+
+        const statusKey = (rule.status || '').toLowerCase();
+        const maturity = statusMap[statusKey] ?? 30;
+        const maturityReason = {
+            stable: 'Status: stable — production-validated rule',
+            test: 'Status: test — validation in progress',
+            experimental: 'Status: experimental — use with caution',
+            deprecated: 'Status: deprecated — no longer maintained',
+        }[statusKey] || `Status: ${rule.status || 'unknown'} — not a standard Sigma status`;
+
+        const levelKey = (rule.level || '').toLowerCase();
+        const severity = levelMap[levelKey] ?? 30;
+        const severityReason = {
+            critical: 'Level: critical — highest severity',
+            high:     'Level: high',
+            medium:   'Level: medium',
+            low:      'Level: low',
+            informational: 'Level: informational — context only',
+            info:     'Level: informational — context only',
+        }[levelKey] || `Level: ${rule.level || 'unknown'}`;
+
+        const mitreTags = (rule.tags || []).filter(t =>
+            typeof t === 'string' && /^attack\./i.test(t)
+        );
+        const coverage = Math.min(100, mitreTags.length * 20);
+        const coverageReason = mitreTags.length === 0
+            ? 'No MITRE ATT&CK tags — coverage unknown'
+            : `${mitreTags.length} MITRE tag${mitreTags.length > 1 ? 's' : ''} (${mitreTags.slice(0,3).join(', ')}${mitreTags.length > 3 ? '...' : ''})`;
+
+        // FP Risk: based on actual content of falsepositives entries, not just count
+        // "Unknown" is treated as low-confidence (not as a real FP scenario)
+        const fpEntries = (rule.falsepositives || []);
+        const realFPs = fpEntries.filter(fp => {
+            const s = String(fp || '').trim().toLowerCase();
+            return s.length > 0 && s !== 'unknown' && s !== 'none' && s !== 'n/a';
+        });
+        let fpRisk, fpRiskReason;
+        if (fpEntries.length === 0) {
+            fpRisk = 90; fpRiskReason = 'No false positive scenarios documented';
+        } else if (realFPs.length === 0) {
+            fpRisk = 75; fpRiskReason = `FP field contains only generic placeholder ("${fpEntries[0]}")`;
+        } else if (realFPs.length === 1) {
+            fpRisk = 55; fpRiskReason = `1 concrete FP scenario documented: "${realFPs[0]}"`;
+        } else if (realFPs.length <= 3) {
+            fpRisk = 35; fpRiskReason = `${realFPs.length} concrete FP scenarios — analyst review advised`;
+        } else {
+            fpRisk = 15; fpRiskReason = `${realFPs.length} FP scenarios — high noise potential`;
+        }
+
+        let updateFreq = 20, updateReason = 'Last update date unknown';
+        if (rule.last_updated_at) {
+            const then = new Date(String(rule.last_updated_at).replace(' ', 'T'));
+            if (!isNaN(then.getTime())) {
+                const days = Math.floor((Date.now() - then.getTime()) / 86400000);
+                const dateStr = then.toISOString().slice(0, 10);
+                if (days < 90)       { updateFreq = 100; updateReason = `Updated ${days}d ago (${dateStr}) — current`; }
+                else if (days < 180) { updateFreq = 70;  updateReason = `Updated ${days}d ago (${dateStr}) — recent`; }
+                else if (days < 365) { updateFreq = 50;  updateReason = `Updated ${days}d ago (${dateStr}) — aging`; }
+                else if (days < 730) { updateFreq = 30;  updateReason = `Updated ${days}d ago (${dateStr}) — stale`; }
+                else                 { updateFreq = 10;  updateReason = `Updated ${days}d ago (${dateStr}) — very old`; }
+            }
+        }
+
+        return [
+            { axis: 'Maturity',   value: maturity,   reason: maturityReason },
+            { axis: 'Severity',   value: severity,   reason: severityReason },
+            { axis: 'Coverage',   value: coverage,   reason: coverageReason },
+            { axis: 'FP Risk',    value: fpRisk,     reason: fpRiskReason },
+            { axis: 'Freshness',  value: updateFreq, reason: updateReason },
+        ];
+    }
+
+    function radarSvg(data) {
+        const size = 200, cx = size / 2, cy = size / 2, maxR = 72;
+        const n = data.length;
+        const angle = i => (Math.PI * 2 * i) / n - Math.PI / 2;
+
+        let rings = '';
+        [0.25, 0.5, 0.75, 1.0].forEach(f => {
+            const pts = Array.from({ length: n }, (_, i) => {
+                const r = maxR * f;
+                return `${cx + r * Math.cos(angle(i))},${cy + r * Math.sin(angle(i))}`;
+            }).join(' ');
+            const label = f < 1 ? `<text x="${cx + maxR * f * Math.cos(angle(0)) - 3}" y="${cy + maxR * f * Math.sin(angle(0)) - 4}" fill="#333" font-size="7" font-family="JetBrains Mono,monospace">${Math.round(f * 100)}</text>` : '';
+            rings += `<polygon points="${pts}" fill="none" stroke="${f === 1 ? '#333' : '#1e1e1e'}" stroke-width="${f === 1 ? 1 : 0.6}"/>${label}`;
+        });
+
+        let axes = '', labels = '';
+        data.forEach((d, i) => {
+            const x = cx + maxR * Math.cos(angle(i));
+            const y = cy + maxR * Math.sin(angle(i));
+            axes += `<line x1="${cx}" y1="${cy}" x2="${x}" y2="${y}" stroke="#1e1e1e" stroke-width="0.8"/>`;
+            const lx = cx + (maxR + 20) * Math.cos(angle(i));
+            const ly = cy + (maxR + 20) * Math.sin(angle(i));
+            labels += `<text x="${lx}" y="${ly}" text-anchor="middle" dominant-baseline="middle" fill="#666" font-size="9.5" font-family="JetBrains Mono,monospace">${esc(d.axis)}</text>`;
+        });
+
+        const dataPts = data.map((d, i) => {
+            const r = (d.value / 100) * maxR;
+            return `${cx + r * Math.cos(angle(i))},${cy + r * Math.sin(angle(i))}`;
+        }).join(' ');
+
+        let dots = '';
+        data.forEach((d, i) => {
+            const r = (d.value / 100) * maxR;
+            const x = cx + r * Math.cos(angle(i));
+            const y = cy + r * Math.sin(angle(i));
+            dots += `<circle cx="${x}" cy="${y}" r="3.5" fill="#c0404e" stroke="#0d0d0d" stroke-width="1"/>`;
+        });
+
+        return `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" class="radar-svg">
+            ${rings}${axes}
+            <polygon points="${dataPts}" fill="rgba(192,64,78,0.18)" stroke="#c0404e" stroke-width="1.5"/>
+            ${dots}${labels}
+        </svg>`;
+    }
+
+    function radarBreakdownHtml(data) {
+        const bar = v => {
+            const color = v >= 70 ? '#2ea043' : v >= 40 ? '#d29922' : '#c0404e';
+            return `<div class="radar-bar-track"><div class="radar-bar-fill" style="width:${v}%;background:${color};"></div></div>`;
+        };
+        return data.map(d => `
+            <div class="radar-row">
+                <span class="radar-axis-label">${esc(d.axis)}</span>
+                ${bar(d.value)}
+                <span class="radar-score-val">${Math.round(d.value)}</span>
+                <span class="radar-reason">${esc(d.reason)}</span>
+            </div>`).join('');
+    }
+
+    // ── Sigma-to-query translation (Feature #7) ──────────────────────────────
+    function detectionToQuery(detection, platform) {
+        if (!detection || typeof detection !== 'object') {
+            return '# No detection block to translate';
+        }
+
+        // Find the 'condition' key (usually a string)
+        const condition = detection.condition || '';
+        // Selection blocks: every key that's not 'condition' or 'timeframe'
+        const selections = {};
+        Object.keys(detection).forEach(k => {
+            if (k === 'condition' || k === 'timeframe') return;
+            selections[k] = detection[k];
+        });
+
+        function normalizeField(key) {
+            // Sigma modifiers come after a pipe: field|contains -> field
+            return key.split('|')[0];
+        }
+
+        function walkSelection(selObj) {
+            // Returns array of {field, op, value}
+            const out = [];
+            if (!selObj || typeof selObj !== 'object') return out;
+            if (Array.isArray(selObj)) {
+                selObj.forEach(item => out.push(...walkSelection(item)));
+                return out;
+            }
+            Object.keys(selObj).forEach(k => {
+                const field = normalizeField(k);
+                const mods = k.split('|').slice(1);
+                const op = mods.includes('contains') ? 'contains'
+                         : mods.includes('startswith') ? 'startswith'
+                         : mods.includes('endswith') ? 'endswith'
+                         : mods.includes('re') ? 'regex'
+                         : 'eq';
+                const v = selObj[k];
+                if (Array.isArray(v)) {
+                    v.forEach(item => out.push({ field, op, value: item }));
+                } else {
+                    out.push({ field, op, value: v });
+                }
+            });
+            return out;
+        }
+
+        const splunkOp = (c) => {
+            const val = typeof c.value === 'string' ? `"${c.value.replace(/"/g, '\\"')}"` : String(c.value);
+            switch (c.op) {
+                case 'contains':   return `${c.field}=*${String(c.value).replace(/"/g, '')}*`;
+                case 'startswith': return `${c.field}="${String(c.value).replace(/"/g, '')}*"`;
+                case 'endswith':   return `${c.field}="*${String(c.value).replace(/"/g, '')}"`;
+                case 'regex':      return `${c.field}=${val}`;
+                default:           return `${c.field}=${val}`;
+            }
+        };
+
+        const kqlOp = (c) => {
+            const v = typeof c.value === 'string' ? `"${c.value.replace(/"/g, '\\"')}"` : String(c.value);
+            switch (c.op) {
+                case 'contains':   return `${c.field}:*${String(c.value)}*`;
+                case 'startswith': return `${c.field}:${String(c.value)}*`;
+                case 'endswith':   return `${c.field}:*${String(c.value)}`;
+                default:           return `${c.field}:${v}`;
+            }
+        };
+
+        const elasticOp = (c) => {
+            switch (c.op) {
+                case 'contains':   return { wildcard: { [c.field]: { value: '*' + String(c.value) + '*' } } };
+                case 'startswith': return { prefix:   { [c.field]: String(c.value) } };
+                case 'endswith':   return { wildcard: { [c.field]: { value: '*' + String(c.value) } } };
+                case 'regex':      return { regexp:   { [c.field]: String(c.value) } };
+                default:           return { match:    { [c.field]: c.value } };
+            }
+        };
+
+        if (platform === 'spl') {
+            const parts = [];
+            Object.keys(selections).forEach(selName => {
+                const conds = walkSelection(selections[selName]);
+                if (!conds.length) return;
+                const block = conds.map(splunkOp).join(' AND ');
+                parts.push(`(${block})`);
+            });
+            const body = parts.length ? parts.join(' AND ') : '*';
+            return `index=* ${body}${condition ? '\n| comment "condition: ' + condition + '"' : ''}`;
+        }
+
+        if (platform === 'kql') {
+            const parts = [];
+            Object.keys(selections).forEach(selName => {
+                const conds = walkSelection(selections[selName]);
+                if (!conds.length) return;
+                parts.push(conds.map(kqlOp).join(' and '));
+            });
+            const body = parts.length ? parts.join(' and ') : '*';
+            return body + (condition ? `\n// condition: ${condition}` : '');
+        }
+
+        // Elastic DSL
+        const must = [];
+        Object.keys(selections).forEach(selName => {
+            const conds = walkSelection(selections[selName]);
+            conds.forEach(c => must.push(elasticOp(c)));
+        });
+        const q = { query: { bool: { must: must.length ? must : [{ match_all: {} }] } } };
+        return JSON.stringify(q, null, 2) + (condition ? `\n// condition: ${condition}` : '');
+    }
+
+    // ── Simple line-based diff (Feature #5) ─────────────────────────────────
+    function simpleDiff(a, b) {
+        const aLines = (a || '').split('\n');
+        const bLines = (b || '').split('\n');
+
+        // LCS dp
+        const m = aLines.length, n = bLines.length;
+        const dp = Array.from({ length: m + 1 }, () => new Uint16Array(n + 1));
+        for (let i = m - 1; i >= 0; i--) {
+            for (let j = n - 1; j >= 0; j--) {
+                if (aLines[i] === bLines[j]) dp[i][j] = dp[i + 1][j + 1] + 1;
+                else dp[i][j] = Math.max(dp[i + 1][j], dp[i][j + 1]);
+            }
+        }
+
+        const out = [];
+        let i = 0, j = 0;
+        while (i < m && j < n) {
+            if (aLines[i] === bLines[j]) {
+                out.push({ kind: 'eq', text: aLines[i] });
+                i++; j++;
+            } else if (dp[i + 1][j] >= dp[i][j + 1]) {
+                out.push({ kind: 'del', text: aLines[i] });
+                i++;
+            } else {
+                out.push({ kind: 'add', text: bLines[j] });
+                j++;
+            }
+        }
+        while (i < m) { out.push({ kind: 'del', text: aLines[i++] }); }
+        while (j < n) { out.push({ kind: 'add', text: bLines[j++] }); }
+        return out;
+    }
+
+    function renderDiffHtml(diffLines) {
+        return diffLines.map(ln => {
+            const pfx = ln.kind === 'add' ? '+' : ln.kind === 'del' ? '-' : ' ';
+            return `<div class="diff-line diff-${ln.kind}"><span class="diff-pfx">${pfx}</span><span class="diff-text">${esc(ln.text)}</span></div>`;
+        }).join('');
+    }
+
+    // ── Render rule into detail pane ─────────────────────────────────────────
+    function renderRule(rule, filters) {
+        const pane = document.getElementById('detailPane');
+
+        // Tags row
+        const tagsHtml = (rule.tags || []).length ? `
+            <div class="meta-field full-width">
+                <div class="meta-key">MITRE ATT&amp;CK Tags</div>
+                <div class="tag-row">${(rule.tags).map(t =>
+                    `<a href="/${filterUrl({...filters, mitre_id: t})}" class="tag-chip" title="Filter by ${esc(t)}">${esc(t)}</a>`
+                ).join('')}</div>
+            </div>` : '';
+
+        // References — normalise to array (API may return string for malformed DB rows)
+        const refs = Array.isArray(rule.references) ? rule.references
+                   : (rule.references ? [rule.references] : []);
+        const refsHtml = refs.length ? `
+            <div class="meta-field full-width">
+                <div class="meta-key">References</div>
+                <div class="meta-val"><ul class="references-list">${refs.map(r =>
+                    `<li><a href="${esc(r)}" target="_blank" rel="noopener noreferrer">${esc(r)}</a></li>`
+                ).join('')}</ul></div>
+            </div>` : '';
+
+        // False positives
+        let fpText = '';
+        if (rule.falsepositives && rule.falsepositives.length) {
+            fpText = `<div class="meta-field full-width">
+                <div class="meta-key">False Positives</div>
+                <div class="meta-val"><pre class="nested-code"><code>${esc(JSON.stringify(rule.falsepositives, null, 2))}</code></pre></div>
+            </div>`;
+        }
+
+        // Other versions — with "Diff" buttons
+        const versHtml = (rule._versions || []).length ? `
+            <div class="meta-field full-width">
+                <div class="meta-key">Other Versions</div>
+                <div class="meta-val"><div class="tag-row">${(rule._versions).map(v =>
+                    `<span class="version-group">
+                        <a href="/rule/${esc(v.id)}${filterUrl(filters)}" class="tag-chip version-chip">${esc(v.title)}</a>
+                        <button type="button" class="btn-diff" data-diff-id="${esc(v.id)}" title="Diff against this version">Diff</button>
+                    </span>`
+                ).join('')}</div></div>
+            </div>` : '';
+
+        // Log source
+        const ls = [rule.logsource_product, rule.logsource_category].filter(Boolean).join(' / ') || 'N/A';
+
+        // Bookmark state
+        const starred = isBookmarked(rule.id);
+        const noDecayPinned = isNoDecayPinned(rule.id);
+
+        // Radar
+        const radarData = computeRadar(rule);
+        const radarHtml = radarSvg(radarData);
+
+        // Variant picker — find same-title siblings (including hidden grouped ones)
+        const normTitle = (t) => (t || '').trim().toLowerCase();
+        const thisTitle = normTitle(rule.title);
+        // Query ALL li elements including those hidden by the grouping logic
+        const allItems = Array.from(document.querySelectorAll('li.rule-item[data-rule-id]'));
+        const siblings = allItems.filter(li => {
+            const t = normTitle(li.dataset.title);
+            return t === thisTitle && li.dataset.ruleId !== rule.id;
+        });
+        let variantPickerHtml = '';
+        if (siblings.length > 0) {
+            const myLvlCls = `level-indicator level-${esc((rule.level||'').toLowerCase())}`;
+            const myStCls  = `status-indicator status-${esc((rule.status||'').toLowerCase())}`;
+            const myLvl    = rule.level ? (({'critical':'CRIT','high':'HIGH','medium':'MED','low':'LOW','informational':'INFO'}[rule.level.toLowerCase()] || rule.level.toUpperCase())) : '—';
+            const mySt     = rule.status ? (rule.status.charAt(0).toUpperCase() + rule.status.slice(1)) : '—';
+
+            const siblingRows = siblings.map(li => {
+                const sid    = li.dataset.ruleId;
+                const title  = li.querySelector('.rule-title')?.textContent?.trim() || '—';
+                const lvlEl  = li.querySelector('.level-indicator');
+                const stEl   = li.querySelector('.status-indicator');
+                const lvl    = lvlEl ? lvlEl.textContent.trim() : '—';
+                const st     = stEl  ? stEl.textContent.trim()  : '—';
+                const lvlCls = lvlEl ? lvlEl.className : '';
+                const stCls  = stEl  ? stEl.className  : '';
+                return `<tr class="variant-row" data-variant-id="${esc(sid)}">
+                    <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(title)}">${esc(title)}</td>
+                    <td><span class="${esc(stCls)}">${esc(st)}</span></td>
+                    <td><span class="${esc(lvlCls)}">${esc(lvl)}</span></td>
+                </tr>`;
+            }).join('');
+
+            variantPickerHtml = `
+            <div class="variant-picker">
+                <div class="variant-picker-header">${siblings.length + 1} variants of this rule</div>
+                <table class="variant-table">
+                    <tr class="variant-row is-active" data-variant-id="${esc(rule.id)}">
+                        <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(rule.title)}">${esc(rule.title)}</td>
+                        <td><span class="${esc(myStCls)}">${esc(mySt)}</span></td>
+                        <td><span class="${esc(myLvlCls)}">${esc(myLvl)}</span></td>
+                    </tr>
+                    ${siblingRows}
+                </table>
+            </div>`;
+        }
+
+        const html = `
+        ${variantPickerHtml}
+        <section class="card">
+            <div class="card-header">
+                <span class="card-label">Metadata</span>
+                <div class="card-header-actions">
+                    <button type="button" class="btn-star ${starred ? 'is-starred' : ''}" id="starBtn" title="${starred ? 'Remove from bookmarks' : 'Add to bookmarks'}" aria-pressed="${starred}">
+                        <span class="star-glyph">${starred ? '\u2605' : '\u2606'}</span>
+                        <span class="star-label">${starred ? 'Saved' : 'Save'}</span>
+                    </button>
+                    ${levelBadge(rule.level)}
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="meta-grid">
+                    <div class="meta-field full-width">
+                        <div class="meta-key">Rule Title</div>
+                        <div class="meta-val">${esc(rule.title)}</div>
+                    </div>
+                    <div class="meta-field">
+                        <div class="meta-key">ID</div>
+                        <div class="meta-val mono">${esc(rule.id)}</div>
+                    </div>
+                    <div class="meta-field">
+                        <div class="meta-key">Status</div>
+                        <div class="meta-val">${statusBadge(rule.status)}</div>
+                    </div>
+                    <div class="meta-field">
+                        <div class="meta-key">Author</div>
+                        <div class="meta-val">${esc(rule.author || 'N/A')}</div>
+                    </div>
+                    <div class="meta-field">
+                        <div class="meta-key">Log Source</div>
+                        <div class="meta-val">${esc(ls)}</div>
+                    </div>
+                    <div class="meta-field">
+                        <div class="meta-key">First Seen</div>
+                        <div class="meta-val">${esc(fmtDate(rule.first_seen_at))}</div>
+                    </div>
+                    <div class="meta-field">
+                        <div class="meta-key">Last Updated</div>
+                        <div class="meta-val">${esc(fmtDate(rule.last_updated_at))}</div>
+                    </div>
+                    <div class="meta-field" id="decayField">
+                        <div class="meta-key">Decay Score
+                            <button type="button" class="btn-no-decay ${noDecayPinned ? 'is-pinned' : ''}" id="noDecayBtn" title="${noDecayPinned ? 'Decay pinned OFF — click to restore' : 'Pin as No Decay (rule stays visible regardless of age)'}">
+                                ${noDecayPinned ? '&#128204; No Decay' : '&#9675; Pin No Decay'}
+                            </button>
+                        </div>
+                        <div class="meta-val" id="decayVal"><span class="decay-loading">Computing…</span></div>
+                    </div>
+                    ${versHtml}
+                    <div class="meta-field full-width">
+                        <div class="meta-key">Description</div>
+                        <div class="meta-val">${esc(rule.description || 'N/A')}</div>
+                    </div>
+                    ${tagsHtml}
+                    ${refsHtml}
+                    ${fpText}
+                    <div class="meta-field">
+                        <div class="meta-key">Source Name</div>
+                        <div class="meta-val">${esc(rule.source_name || '')}</div>
+                    </div>
+                    <div class="meta-field">
+                        <div class="meta-key">Source URL</div>
+                        <div class="meta-val"><a href="${esc(rule.source_url || '')}" target="_blank" rel="noopener noreferrer">${esc(rule.source_url || '')}</a></div>
+                    </div>
+                    <div class="meta-field full-width">
+                        <div class="meta-key">Rule Hash (SHA256)</div>
+                        <div class="meta-val"><span class="hash-value">${esc(rule.rule_hash || '')}</span></div>
+                    </div>
+                    <div class="meta-field full-width" id="similarRulesField" hidden>
+                        <div class="meta-key">Similar Rules (Detection Genome)</div>
+                        <div class="meta-val" id="similarRulesBody"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="card collapsible-card is-collapsed" id="radarCard">
+            <div class="card-header collapsible-header" role="button" tabindex="0" aria-expanded="false">
+                <span class="card-label">Detection Confidence</span>
+                <span class="collapse-chevron">&#9662;</span>
+            </div>
+            <div class="card-body collapsible-body">
+                <div class="radar-wrap">
+                    ${radarHtml}
+                    <div class="radar-breakdown">
+                        ${radarBreakdownHtml(radarData)}
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <div id="diffContainer"></div>
+
+        <section class="card">
+            <div class="card-header">
+                <span class="card-title">${esc(rule.title)}</span>
+                <button class="btn-copy" id="copyRuleButton" title="Copy rule content" aria-label="Copy rule content to clipboard">
+                    <svg class="icon-copy" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
+                    <span class="btn-copy-text">Copy</span>
+                </button>
+            </div>
+            <div class="card-body" style="padding:16px 20px;">
+                <div class="yaml-wrap">
+                    <pre><code id="ruleYamlContent"></code></pre>
+                </div>
+            </div>
+        </section>
+
+        <section class="card collapsible-card is-collapsed" id="queryPadCard">
+            <div class="card-header collapsible-header" role="button" tabindex="0" aria-expanded="false">
+                <span class="card-label">Sigma-to-Query Sketch Pad</span>
+                <span class="collapse-chevron">&#9662;</span>
+            </div>
+            <div class="card-body collapsible-body">
+                <div class="qp-controls">
+                    <label for="qpPlatform" class="qp-label">Platform</label>
+                    <select id="qpPlatform" class="qp-select">
+                        <option value="spl">Splunk SPL</option>
+                        <option value="kql">Microsoft KQL</option>
+                        <option value="elastic">Elastic DSL</option>
+                    </select>
+                    <button type="button" class="btn btn-primary" id="qpGenerate">Generate</button>
+                    <button type="button" class="btn btn-secondary" id="qpCopy" hidden>Copy</button>
+                </div>
+                <p class="qp-caveat">Structural approximation only — review before use.</p>
+                <pre class="qp-output"><code id="qpResult"></code></pre>
+            </div>
+        </section>`;
+
+        pane.innerHTML = html;
+        pane.scrollTop = 0;
+
+        // Wire variant picker row clicks (skip active row)
+        pane.querySelectorAll('.variant-row[data-variant-id]').forEach(row => {
+            if (row.classList.contains('is-active')) return;
+            row.addEventListener('click', function() {
+                fetchAndRender(this.dataset.variantId, getFilters(), true);
+            });
+        });
+
+        // Syntax highlight
+        const codeEl = document.getElementById('ruleYamlContent');
+        if (codeEl) codeEl.innerHTML = highlightYaml(rule.raw_rule || '');
+
+        // Copy button
+        const copyBtn = document.getElementById('copyRuleButton');
+        if (copyBtn) {
+            copyBtn.addEventListener('click', () => {
+                const text = rule.raw_rule || '';
+                const span = copyBtn.querySelector('.btn-copy-text');
+                navigator.clipboard.writeText(text).then(() => {
+                    span.textContent = 'Copied!';
+                    copyBtn.classList.add('is-success');
+                    setTimeout(() => { span.textContent = 'Copy'; copyBtn.classList.remove('is-success'); }, 2000);
+                }).catch(() => {
+                    span.textContent = 'Error!';
+                    copyBtn.classList.add('is-error');
+                    setTimeout(() => { span.textContent = 'Copy'; copyBtn.classList.remove('is-error'); }, 2000);
+                });
+            });
+        }
+
+        // ── Bookmark star wiring ─────────────────────────────────────────
+        const starBtn = document.getElementById('starBtn');
+        if (starBtn) {
+            starBtn.addEventListener('click', () => {
+                const nowStarred = toggleBookmark(rule.id);
+                starBtn.classList.toggle('is-starred', nowStarred);
+                starBtn.setAttribute('aria-pressed', nowStarred);
+                starBtn.title = nowStarred ? 'Remove from bookmarks' : 'Add to bookmarks';
+                starBtn.querySelector('.star-glyph').textContent = nowStarred ? '\u2605' : '\u2606';
+                starBtn.querySelector('.star-label').textContent = nowStarred ? 'Saved' : 'Save';
+            });
+        }
+
+        // ── Collapsible sections ─────────────────────────────────────────
+        pane.querySelectorAll('.collapsible-header').forEach(h => {
+            const toggle = () => {
+                const card = h.closest('.collapsible-card');
+                const isCollapsed = card.classList.toggle('is-collapsed');
+                h.setAttribute('aria-expanded', !isCollapsed);
+            };
+            h.addEventListener('click', toggle);
+            h.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
+            });
+        });
+
+        // ── Diff buttons ─────────────────────────────────────────────────
+        pane.querySelectorAll('[data-diff-id]').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const otherId = btn.dataset.diffId;
+                renderDiff(rule, otherId);
+            });
+        });
+
+        // ── Query sketch pad ─────────────────────────────────────────────
+        const qpGen = document.getElementById('qpGenerate');
+        const qpCopyBtn = document.getElementById('qpCopy');
+        const qpResult = document.getElementById('qpResult');
+        const qpPlatform = document.getElementById('qpPlatform');
+        if (qpGen && qpResult && qpPlatform) {
+            qpGen.addEventListener('click', () => {
+                const query = detectionToQuery(rule.detection, qpPlatform.value);
+                qpResult.textContent = query;
+                qpCopyBtn.hidden = false;
+            });
+            qpCopyBtn.addEventListener('click', () => {
+                navigator.clipboard.writeText(qpResult.textContent || '').then(() => {
+                    qpCopyBtn.textContent = 'Copied!';
+                    setTimeout(() => qpCopyBtn.textContent = 'Copy', 1500);
+                });
+            });
+        }
+
+        // ── Fetch + inject similar rules (genome) ───────────────────────
+        fetch('/api/genome/' + encodeURIComponent(rule.id))
+            .then(r => r.ok ? r.json() : { similar: [] })
+            .then(data => {
+                const field = document.getElementById('similarRulesField');
+                const body = document.getElementById('similarRulesBody');
+                if (!field || !body || !data.similar || !data.similar.length) return;
+                body.innerHTML = '<div class="tag-row">' + data.similar.map(s => {
+                    const pct = Math.round((s.score || 0) * 100);
+                    return `<a href="/rule/${encodeURIComponent(s.id)}${filterUrl(filters)}" class="tag-chip genome-chip" title="Jaccard similarity: ${pct}%">${esc(s.title)} <span class="genome-score">${pct}%</span></a>`;
+                }).join('') + '</div>';
+                field.hidden = false;
+            })
+            .catch(() => {});
+
+        // ── Fetch + inject decay score ───────────────────────────────────
+        if (document.getElementById('decayVal')) {
+            fetch('/api/decay/' + encodeURIComponent(rule.id))
+                .then(r => r.ok ? r.json() : null)
+                .then(d => {
+                    const el = document.getElementById('decayVal');
+                    if (!el || !d) return;
+
+                    const pinned = isNoDecayPinned(rule.id);
+                    const score = d.score;
+                    const stateLabel = pinned ? 'pinned — no decay effects' : { ok: 'Active', warn: 'Warning', grey: 'Greyed out', hidden: 'Would be hidden' }[d.state] || d.state;
+                    const color = pinned ? '#56c2e6' : (score >= 70 ? '#2ea043' : score >= 40 ? '#d29922' : '#c0404e');
+
+                    const srcLabel = d.ref_source ? `Source: ${d.ref_source}` : 'Source: unknown';
+                    const tooltip = [
+                        `Last updated: ${d.ref_date || 'unknown'}`,
+                        srcLabel,
+                        `Days since update: ${d.days_since_update != null ? d.days_since_update : 'unknown'}`,
+                        ``,
+                        `Warning at: ${d.warn_date} (${d.config.decay_warn_days}d)`,
+                        `Greyout at: ${d.grey_date} (${d.config.decay_grey_days}d)`,
+                        `Hidden at:  ${d.hide_date} (${d.config.decay_hide_days}d)`,
+                    ].join('\n');
+
+                    el.innerHTML = `
+                        <span class="decay-score-pill" style="background:${color}22;border:1px solid ${color}44;color:${color}" title="${esc(tooltip)}">
+                            <span class="decay-score-num">${score}</span>/100
+                            <span class="decay-score-state">${esc(stateLabel)}</span>
+                            <svg viewBox="0 0 16 16" width="10" height="10" fill="${color}" style="margin-left:3px" aria-label="info"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm.5 3.5v1h-1v-1h1zm0 2.5v4h-1V7h1z"/></svg>
+                        </span>`;
+                })
+                .catch(() => {
+                    const el = document.getElementById('decayVal');
+                    if (el) el.innerHTML = '<span class="meta-val">N/A</span>';
+                });
+        }
+
+        // ── Wire No Decay pin button ─────────────────────────────────────
+        const noDecayBtn = document.getElementById('noDecayBtn');
+        if (noDecayBtn) {
+            noDecayBtn.addEventListener('click', () => {
+                const nowPinned = toggleNoDecay(rule.id);
+                noDecayBtn.classList.toggle('is-pinned', nowPinned);
+                noDecayBtn.title = nowPinned ? 'Decay pinned OFF — click to restore' : 'Pin as No Decay (rule stays visible regardless of age)';
+                noDecayBtn.innerHTML = nowPinned ? '&#128204; No Decay' : '&#9675; Pin No Decay';
+                // Re-fetch to update score display with pin state
+                fetch('/api/decay/' + encodeURIComponent(rule.id))
+                    .then(r => r.ok ? r.json() : null)
+                    .then(d => {
+                        if (!d) return;
+                        const el = document.getElementById('decayVal');
+                        if (!el) return;
+                        const pinned = isNoDecayPinned(rule.id);
+                        const score = d.score;
+                        const stateLabel = pinned ? 'pinned — no decay effects' : { ok: 'Active', warn: 'Warning', grey: 'Greyed out', hidden: 'Would be hidden' }[d.state] || d.state;
+                        const color = pinned ? '#56c2e6' : (score >= 70 ? '#2ea043' : score >= 40 ? '#d29922' : '#c0404e');
+                        const srcLabel2 = d.ref_source ? `Source: ${d.ref_source}` : 'Source: unknown';
+                        const tooltip = [
+                            `Last updated: ${d.ref_date || 'unknown'}`,
+                            srcLabel2,
+                            `Days since update: ${d.days_since_update != null ? d.days_since_update : 'unknown'}`,
+                            ``,
+                            `Warning at: ${d.warn_date} (${d.config.decay_warn_days}d)`,
+                            `Greyout at: ${d.grey_date} (${d.config.decay_grey_days}d)`,
+                            `Hidden at:  ${d.hide_date} (${d.config.decay_hide_days}d)`,
+                        ].join('\n');
+                        el.innerHTML = `
+                            <span class="decay-score-pill" style="background:${color}22;border:1px solid ${color}44;color:${color}" title="${esc(tooltip)}">
+                                <span class="decay-score-num">${score}</span>/100
+                                <span class="decay-score-state">${esc(stateLabel)}</span>
+                                <svg viewBox="0 0 16 16" width="10" height="10" fill="${color}" style="margin-left:3px" aria-label="info"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm.5 3.5v1h-1v-1h1zm0 2.5v4h-1V7h1z"/></svg>
+                            </span>`;
+                    }).catch(() => {});
+            });
+        }
+    }
+
+    // ── Render diff card between current rule and another version ───────
+    function renderDiff(rule, otherId) {
+        const container = document.getElementById('diffContainer');
+        if (!container) return;
+        container.innerHTML = `
+            <section class="card">
+                <div class="card-header">
+                    <span class="card-label">Diff vs other version</span>
+                    <button type="button" class="btn btn-secondary" id="diffClose">Close</button>
+                </div>
+                <div class="card-body">
+                    <div class="diff-loading">Loading diff…</div>
+                </div>
+            </section>`;
+        container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+        document.getElementById('diffClose').addEventListener('click', () => {
+            container.innerHTML = '';
+        });
+
+        fetch('/api/rule/' + encodeURIComponent(otherId))
+            .then(r => r.ok ? r.json() : null)
+            .then(other => {
+                if (!other) throw new Error('Not found');
+                const diff = simpleDiff(rule.raw_rule || '', other.raw_rule || '');
+                const body = container.querySelector('.card-body');
+                body.innerHTML = `
+                    <div class="diff-meta">
+                        <span class="diff-tag">This: ${esc(rule.title)}</span>
+                        <span class="diff-arrow">vs</span>
+                        <span class="diff-tag">${esc(other.title)}</span>
+                    </div>
+                    <div class="diff-block">${renderDiffHtml(diff)}</div>`;
+            })
+            .catch(err => {
+                const body = container.querySelector('.card-body');
+                if (body) body.innerHTML = '<div class="diff-loading">Failed to load diff.</div>';
+            });
+    }
+
+    function showPlaceholder() {
+        document.getElementById('detailPane').innerHTML = `
+            <div class="card placeholder-card">
+                <svg class="placeholder-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                    <path d="M12 2L4 6v6c0 5 3.5 9.3 8 10.3C16.5 21.3 20 17 20 12V6l-8-4z" fill="#7d212b" opacity="0.25"/>
+                    <path d="M12 2L4 6v6c0 5 3.5 9.3 8 10.3C16.5 21.3 20 17 20 12V6l-8-4z" stroke="#7d212b" stroke-width="1.5" stroke-linejoin="round"/>
+                    <path d="M9 12l2 2 4-4" stroke="#c0404e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <div class="placeholder-title">Select a rule</div>
+                <div class="placeholder-sub">Choose from the list on the left to view detection details</div>
+            </div>`;
+    }
+
+    // ── Active sidebar item ──────────────────────────────────────────────────
+    function setActive(ruleId) {
+        document.querySelectorAll('.rule-item').forEach(li => {
+            li.classList.toggle('active', li.dataset.ruleId === ruleId);
+        });
+        if (ruleId) {
+            const activeItem = document.querySelector(`#sidebarGroups .rule-item[data-rule-id="${CSS.escape(ruleId)}"]`);
+            if (activeItem) {
+                expandAncestors(activeItem);
+                activeItem.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            }
+        }
+    }
+
+    // ── Fetch rule JSON + related versions ───────────────────────────────────
+    const inflight = {};   // deduplicate concurrent fetches for same id
+    function fetchAndRender(ruleId, filters, pushState) {
+        setActive(ruleId);
+        if (ruleId) setCookie('rc_last_rule', ruleId, 30);
+
+        if (pushState) {
+            const url = `/rule/${ruleId}${filterUrl(filters)}`;
+            history.pushState({ ruleId, filters }, '', url);
+        }
+
+        if (inflight[ruleId]) return; // already loading
+        inflight[ruleId] = true;
+
+        // Optimistic: show a subtle loading state only after 120 ms to avoid flash
+        let loadingTimer = setTimeout(() => {
+            const pane = document.getElementById('detailPane');
+            if (!pane.querySelector('.detail-loading')) {
+                pane.insertAdjacentHTML('afterbegin',
+                    '<div class="detail-loading"><span class="spinner-sm-inline"></span></div>');
+            }
+        }, 120);
+
+        fetch(`/api/rule/${encodeURIComponent(ruleId)}`)
+            .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+            .then(rule => {
+                // Fetch related versions (best-effort, non-blocking)
+                return fetchVersions(rule, filters);
+            })
+            .then(rule => {
+                clearTimeout(loadingTimer);
+                delete inflight[ruleId];
+                renderRule(rule, filters);
+            })
+            .catch(err => {
+                clearTimeout(loadingTimer);
+                delete inflight[ruleId];
+                document.getElementById('detailPane').innerHTML =
+                    `<div class="card placeholder-card error-placeholder">
+                        <div class="placeholder-title">Failed to load rule (${esc(String(err))})</div>
+                    </div>`;
+            });
+    }
+
+    function fetchVersions(rule, filters) {
+        // Find sibling versions by querying same title-family via search
+        const baseTitle = rule.title.replace(/\s+v\d+(\.\d+)*\s*$/i, '').trim();
+        if (!baseTitle) return Promise.resolve(rule);
+        return fetch(`/api/rule_versions?title=${encodeURIComponent(baseTitle)}&exclude=${encodeURIComponent(rule.id)}`)
+            .then(r => r.ok ? r.json() : [])
+            .then(versions => { rule._versions = versions; return rule; })
+            .catch(() => { rule._versions = []; return rule; });
+    }
+
+    // ── Cookie helpers ───────────────────────────────────────────────────────
+    function setCookie(name, value, days) {
+        const exp = new Date(Date.now() + days * 864e5).toUTCString();
+        document.cookie = `${name}=${encodeURIComponent(value)};expires=${exp};path=/;SameSite=Lax`;
+    }
+    function getCookie(name) {
+        const m = document.cookie.match('(?:^|;)\\s*' + name + '=([^;]*)');
+        return m ? decodeURIComponent(m[1]) : null;
+    }
+
+    // ── Tree-state key helpers ────────────────────────────────────────────────
+    function repoKey(repo) { return 'rc_repo_open_' + repo; }
+    function catKey(repo, catPath) { return 'rc_cat_open_' + repo + '__' + catPath; }
+
+    function catNodePath(catEl) {
+        // Build a stable path string from the cat-group's data-cat attributes up the tree
+        const parts = [];
+        let el = catEl;
+        while (el) {
+            if (el.classList.contains('cat-group')) parts.unshift(el.dataset.cat || '');
+            el = el.parentElement?.closest('.cat-group');
+        }
+        return parts.join('/');
+    }
+
+    // ── Intercept sidebar clicks ─────────────────────────────────────────────
+    document.getElementById('sidebarGroups').addEventListener('click', function (e) {
+        // Repo header toggle
+        const repoHeader = e.target.closest('.repo-header');
+        if (repoHeader) {
+            const group = repoHeader.closest('.repo-group');
+            if (group) {
+                group.classList.toggle('is-open');
+                localStorage.setItem(repoKey(group.dataset.repo), group.classList.contains('is-open') ? '1' : '0');
+            }
+            return;
+        }
+        // Category header toggle (any depth)
+        const catHeader = e.target.closest('.cat-header');
+        if (catHeader) {
+            const group = catHeader.closest('.cat-group');
+            if (group) {
+                group.classList.toggle('is-open');
+                const repo = group.closest('.repo-group')?.dataset.repo || '';
+                localStorage.setItem(catKey(repo, catNodePath(group)), group.classList.contains('is-open') ? '1' : '0');
+            }
+            return;
+        }
+        // Rule click
+        const item = e.target.closest('.rule-item[data-rule-id]');
+        if (!item) return;
+        e.preventDefault();
+        fetchAndRender(item.dataset.ruleId, getFilters(), true);
+    });
+
+    // ── Back / Forward ───────────────────────────────────────────────────────
+    window.addEventListener('popstate', function (e) {
+        if (e.state && e.state.ruleId) {
+            fetchAndRender(e.state.ruleId, e.state.filters || getFilters(), false);
+        } else {
+            setActive(null);
+            showPlaceholder();
+        }
+    });
+
+    // ── SSR: render initial rule from inline JSON (no extra fetch) ───────────
+    const ssrEl = document.getElementById('ssrRuleData');
+    if (ssrEl) {
+        try {
+            const rule = JSON.parse(ssrEl.textContent);
+            const filters = getFilters();
+            fetchVersions(rule, filters).then(r => renderRule(r, filters));
+            // Replace the current history entry with state so popstate works
+            history.replaceState({ ruleId: rule.id, filters }, '', window.location.href);
+        } catch (e) { /* ignore parse errors */ }
+    }
+
+    // ── Updated-since badges on sidebar items ────────────────────────────────
+    (function () {
+        const LS_KEY = 'rc_last_visit';
+        const lastVisit = localStorage.getItem(LS_KEY);
+        // Store current time as the new "last visit" before marking anything
+        const nowTs = Date.now();
+        localStorage.setItem(LS_KEY, nowTs);
+
+        if (!lastVisit) return; // first ever visit — nothing to compare
+
+        const cutoff = new Date(parseInt(lastVisit, 10));
+
+        document.querySelectorAll('.rule-item[data-updated]').forEach(li => {
+            const raw = li.dataset.updated;
+            if (!raw) return;
+            // DB stores ISO strings like "2024-01-15T10:23:45" or with space
+            const itemDate = new Date(raw.replace(' ', 'T'));
+            if (isNaN(itemDate.getTime())) return;
+            if (itemDate > cutoff) {
+                const badge = li.querySelector('.updated-badge');
+                if (badge) {
+                    // Format: "15 Jan" — compact, fits the sidebar
+                    badge.textContent = itemDate.toLocaleDateString(undefined, {day:'numeric', month:'short'});
+                    badge.classList.add('is-visible');
+                }
+            }
+        });
+
+        // Also update the nav "new rules" chip
+        const navBadge = document.getElementById('newBadge');
+        if (navBadge) {
+            fetch('/api/stats?since=' + encodeURIComponent(lastVisit))
+                .then(r => r.json())
+                .then(data => {
+                    if (data.new_since > 0) {
+                        navBadge.textContent = '+' + data.new_since;
+                        navBadge.style.display = 'inline-flex';
+                    }
+                })
+                .catch(() => {});
+        }
+    })();
+
+
+    // ── Auto-refresh sidebar after a sync completes ──────────────────────────
+    // Sources page stores a timestamp in localStorage when sync finishes.
+    // On the rules page we detect it and reload the sidebar list via fetch.
+    (function () {
+        const LS_SYNC_KEY = 'rc_last_sync_finish';
+
+        function reloadSidebar() {
+            // Fetch the current page URL (preserving filters) but only the sidebar fragment.
+            const url = window.location.pathname + window.location.search;
+            fetch(url, { headers: { 'X-Sidebar-Refresh': '1' } })
+                .then(r => r.text())
+                .then(html => {
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(html, 'text/html');
+                    const newGroups = doc.getElementById('sidebarGroups');
+                    const newCount = doc.getElementById('ruleCountLabel');
+                    if (newGroups) {
+                        const oldGroups = document.getElementById('sidebarGroups');
+                        oldGroups.innerHTML = newGroups.innerHTML;
+                        // Re-mark any items updated since last visit
+                        markUpdatedItems();
+                        // Re-apply open/closed state from localStorage
+                        restoreTreeState();
+                    }
+                    if (newCount) {
+                        document.getElementById('ruleCountLabel').textContent = newCount.textContent;
+                    }
+                })
+                .catch(() => {});
+        }
+
+        function markUpdatedItems() {
+            const lastVisit = localStorage.getItem('rc_last_visit');
+            if (!lastVisit) return;
+            const cutoff = new Date(parseInt(lastVisit, 10));
+            document.querySelectorAll('.rule-item[data-updated]').forEach(li => {
+                const raw = li.dataset.updated;
+                if (!raw) return;
+                const itemDate = new Date(raw.replace(' ', 'T'));
+                if (isNaN(itemDate.getTime())) return;
+                if (itemDate > cutoff) {
+                    const badge = li.querySelector('.updated-badge');
+                    if (badge) {
+                        badge.textContent = itemDate.toLocaleDateString(undefined, {day:'numeric', month:'short'});
+                        badge.classList.add('is-visible');
+                    }
+                }
+            });
+        }
+
+        // Poll localStorage for a sync-finish signal written by sources.html
+        let lastKnownSync = localStorage.getItem(LS_SYNC_KEY);
+
+        setInterval(() => {
+            const current = localStorage.getItem(LS_SYNC_KEY);
+            if (current && current !== lastKnownSync) {
+                lastKnownSync = current;
+                reloadSidebar();
+            }
+        }, 2000);
+    })();
+
+    // ── Restore sidebar tree open/close state + expand active rule's path ────
+    function expandAncestors(el) {
+        // Walk up and open every repo-group and cat-group ancestor
+        let cur = el.parentElement;
+        while (cur) {
+            if (cur.classList.contains('repo-group') || cur.classList.contains('cat-group')) {
+                cur.classList.add('is-open');
+            }
+            cur = cur.parentElement;
+        }
+    }
+
+    function restoreTreeState() {
+        // Repos: default closed unless localStorage says open
+        document.querySelectorAll('#sidebarGroups .repo-group[data-repo]').forEach(group => {
+            const stored = localStorage.getItem(repoKey(group.dataset.repo));
+            if (stored === '1') group.classList.add('is-open');
+            else group.classList.remove('is-open'); // default collapsed
+        });
+        // Category nodes: default closed unless localStorage says open
+        document.querySelectorAll('#sidebarGroups .cat-group[data-cat]').forEach(group => {
+            const repo = group.closest('.repo-group')?.dataset.repo || '';
+            const stored = localStorage.getItem(catKey(repo, catNodePath(group)));
+            if (stored === '1') group.classList.add('is-open');
+            else group.classList.remove('is-open');
+        });
+        // Always expand ancestors of the currently active rule
+        const activeItem = document.querySelector('#sidebarGroups .rule-item.active');
+        if (activeItem) {
+            expandAncestors(activeItem);
+            activeItem.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }
+    }
+    restoreTreeState();
+
+    // ── Restore last-open rule from cookie on fresh load ─────────────────────
+    // Only do this when no rule is already selected (i.e. landing on /)
+    (function () {
+        const ssrEl = document.getElementById('ssrRuleData');
+        if (ssrEl) return; // rule already loaded via SSR
+        const lastRule = getCookie('rc_last_rule');
+        if (!lastRule) return;
+        // Don't auto-restore if there's an active filter state — let user stay on search
+        const hasFilters = !!(getFilters().search || getFilters().level || getFilters().status);
+        if (hasFilters) return;
+        // Verify the rule is actually in the current filtered list before loading it
+        const itemInList = document.querySelector(`#sidebarGroups .rule-item[data-rule-id="${CSS.escape(lastRule)}"]`);
+        if (!itemInList) return;
+        fetchAndRender(lastRule, getFilters(), true);
+    })();
+
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tide Chart — RuleCollector</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <nav class="nav-tabs" aria-label="Primary">
+        <div class="nav-brand">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <path d="M12 2L4 6v6c0 5 3.5 9.3 8 10.3C16.5 21.3 20 17 20 12V6l-8-4z" fill="#7d212b" opacity="0.25"/>
+                <path d="M12 2L4 6v6c0 5 3.5 9.3 8 10.3C16.5 21.3 20 17 20 12V6l-8-4z" stroke="#7d212b" stroke-width="1.5" stroke-linejoin="round"/>
+                <path d="M9 12l2 2 4-4" stroke="#c0404e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span class="nav-brand-name">RuleCollector</span>
+        </div>
+        <a href="{{ url_for('index') }}" class="nav-tab">Rules</a>
+        <a href="{{ url_for('sources_page') }}" class="nav-tab">Sources</a>
+        <a href="{{ url_for('heatmap_page') }}" class="nav-tab">Heatmap</a>
+        <a href="{{ url_for('collection_page') }}" class="nav-tab">Collection</a>
+        <a href="{{ url_for('tide_page') }}" class="nav-tab active">Tide</a>
+        <a href="{{ url_for('decay_config_page') }}" class="nav-tab">Decay</a>
+    </nav>
+
+    <div class="page-container">
+        <div class="page-inner">
+            <h1 class="page-title">Temporal Coverage Tide</h1>
+            <p class="page-subtitle">Cumulative rule count per MITRE tactic over time. Shows how your coverage has grown.</p>
+
+            {% if not features.tide_chart %}
+            <section class="card">
+                <div class="card-body">
+                    <div class="placeholder-card">
+                        <div class="placeholder-title">Feature disabled</div>
+                        <div class="placeholder-sub">Enable <code>tide_chart</code> in <code>features.json</code> to use this view.</div>
+                    </div>
+                </div>
+            </section>
+            {% else %}
+            <section class="card">
+                <div class="card-header">
+                    <span class="card-label">Cumulative Rules by Tactic</span>
+                    <div class="tide-controls">
+                        <div class="tide-mode-toggle">
+                            <button type="button" class="tide-mode-btn active" id="modeIngested" data-mode="ingested">Ingested</button>
+                            <button type="button" class="tide-mode-btn" id="modeAuthored" data-mode="authored">Authored</button>
+                        </div>
+                        <button type="button" class="btn btn-secondary" id="recalcBtn">Recalculate</button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div id="tideStatus" class="tide-status">Loading…</div>
+                    <div style="position: relative; height: 480px;">
+                        <canvas id="tideChart"></canvas>
+                    </div>
+                </div>
+            </section>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if features.tide_chart %}
+    <script>
+    (function () {
+        'use strict';
+        const PALETTE = [
+            '#7d212b', '#c0404e', '#f85149', '#d29922', '#3fb950',
+            '#56c2e6', '#a78bfa', '#e05ba6', '#ff9e3d', '#b4c95d',
+            '#5ac8c8', '#7b8cde', '#d46b08', '#888888'
+        ];
+
+        let chart = null;
+        let currentMode = 'ingested';
+        const status = document.getElementById('tideStatus');
+        const recalcBtn = document.getElementById('recalcBtn');
+        const modeBtns = document.querySelectorAll('.tide-mode-btn');
+
+        function hexToRgba(hex, alpha) {
+            const h = hex.replace('#', '');
+            const r = parseInt(h.substring(0, 2), 16);
+            const g = parseInt(h.substring(2, 4), 16);
+            const b = parseInt(h.substring(4, 6), 16);
+            return `rgba(${r},${g},${b},${alpha})`;
+        }
+
+        function formatDayLabel(isoDate) {
+            // isoDate is 'YYYY-MM-DD', display as 'DD MMM' for readability
+            const d = new Date(isoDate + 'T00:00:00Z');
+            return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', timeZone: 'UTC' });
+        }
+
+        function render(data) {
+            if (!data || !data.days || !data.days.length) {
+                status.textContent = 'No data available yet.';
+                return;
+            }
+
+            const modeLabel = currentMode === 'authored' ? 'rule authored date' : 'ingested date';
+            status.textContent = data.days.length + ' days · ' + data.series.length + ' tactics · by ' + modeLabel;
+
+            const labels = data.days.map(formatDayLabel);
+
+            const datasets = data.series.map((s, i) => {
+                const color = PALETTE[i % PALETTE.length];
+                return {
+                    label: s.label,
+                    data: s.counts,
+                    borderColor: color,
+                    backgroundColor: hexToRgba(color, 0.35),
+                    fill: true,
+                    tension: 0.2,
+                    pointRadius: 0,
+                    pointHoverRadius: 4,
+                    borderWidth: 1.5,
+                };
+            });
+
+            const ctx = document.getElementById('tideChart').getContext('2d');
+            if (chart) chart.destroy();
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: { labels, datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: { color: '#aaaaaa', font: { family: 'Inter', size: 11 }, padding: 12, boxWidth: 14 }
+                        },
+                        tooltip: {
+                            backgroundColor: '#141414',
+                            titleColor: '#cccccc',
+                            bodyColor: '#aaaaaa',
+                            borderColor: '#252525',
+                            borderWidth: 1,
+                            callbacks: {
+                                title: function(items) {
+                                    // Show the raw ISO date in tooltip title
+                                    const idx = items[0].dataIndex;
+                                    return data.days[idx];
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            stacked: true,
+                            ticks: {
+                                color: '#666',
+                                font: { family: 'JetBrains Mono', size: 10 },
+                                maxRotation: 0,
+                                autoSkip: true,
+                                autoSkipPadding: 30,
+                                maxTicksLimit: 20,
+                            },
+                            grid: { color: '#1e1e1e' }
+                        },
+                        y: {
+                            stacked: true,
+                            ticks: { color: '#666', font: { family: 'JetBrains Mono', size: 10 } },
+                            grid: { color: '#1e1e1e' }
+                        }
+                    }
+                }
+            });
+        }
+
+        function load() {
+            status.textContent = 'Loading…';
+            fetch('/api/tide-data?mode=' + currentMode)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.disabled) {
+                        status.textContent = 'Feature disabled.';
+                        return;
+                    }
+                    render(data);
+                })
+                .catch(err => { status.textContent = 'Failed to load: ' + err.message; });
+        }
+
+        modeBtns.forEach(btn => {
+            btn.addEventListener('click', function() {
+                currentMode = this.dataset.mode;
+                modeBtns.forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                load();
+            });
+        });
+
+        recalcBtn.addEventListener('click', load);
+        load();
+    })();
+    </script>
+    {% endif %}
+</body>
+</html>

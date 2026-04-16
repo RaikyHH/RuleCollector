@@ -1,45 +1,54 @@
-// Momentan wird die Seite bei Klick neu geladen.
-// Wenn Sie AJAX-basierte Updates wünschen, würde hier JavaScript-Code stehen,
-// um /api/rule/<id> abzurufen und die Bereiche dynamisch zu füllen.
-// Beispiel (nicht voll funktionsfähig ohne Anpassungen im HTML):
+document.addEventListener('DOMContentLoaded', () => {
+    const copyButton = document.getElementById('copyRuleButton');
+    const ruleContentElement = document.getElementById('ruleYamlContent');
 
-/*
-document.addEventListener('DOMContentLoaded', function() {
-    const ruleLinks = document.querySelectorAll('.rule-list a');
-    const ruleDisplayArea = document.querySelector('.rule-display-area pre code');
-    const metadataTableBody = document.querySelector('.metadata-table tbody'); // Braucht tbody im HTML
+    // Exit if the necessary elements don't exist on the page
+    if (!copyButton || !ruleContentElement) {
+        return;
+    }
 
-    ruleLinks.forEach(link => {
-        link.addEventListener('click', function(event) {
-            event.preventDefault();
-            const ruleId = this.getAttribute('data-id'); // Müsste im HTML hinzugefügt werden
+    const buttonTextSpan = copyButton.querySelector('.btn-copy-text');
+    const originalButtonText = buttonTextSpan ? buttonTextSpan.textContent : 'Copy';
 
-            // Aktiven Link markieren
-            document.querySelectorAll('.rule-list li.active').forEach(li => li.classList.remove('active'));
-            this.parentElement.classList.add('active');
+    /**
+     * Updates the button's appearance and state.
+     * @param {string} text - The text to display on the button.
+     * @param {string} state - The state ('success', 'error', or 'reset').
+     */
+    const setButtonState = (text, state) => {
+        if (buttonTextSpan) {
+            buttonTextSpan.textContent = text;
+        }
+        
+        copyButton.disabled = (state !== 'reset');
+        
+        copyButton.classList.remove('is-success', 'is-error');
+        if (state === 'success') {
+            copyButton.classList.add('is-success');
+        } else if (state === 'error') {
+            copyButton.classList.add('is-error');
+        }
+    };
 
-            fetch(`/api/rule/${ruleId}`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.error) {
-                        ruleDisplayArea.textContent = data.error;
-                        metadataTableBody.innerHTML = ''; // Clear metadata
-                        return;
-                    }
-                    ruleDisplayArea.textContent = data.raw_rule;
-                    // Metadaten füllen (Beispiel)
-                    let metaHtml = `
-                        <tr><th>ID</th><td>${data.id}</td></tr>
-                        <tr><th>Title</th><td>${data.title}</td></tr>
-                        // ... weitere Felder
-                    `;
-                    metadataTableBody.innerHTML = metaHtml;
-                })
-                .catch(error => {
-                    console.error('Error fetching rule:', error);
-                    ruleDisplayArea.textContent = 'Fehler beim Laden der Regel.';
-                });
+    copyButton.addEventListener('click', () => {
+        const ruleText = ruleContentElement.textContent;
+
+        navigator.clipboard.writeText(ruleText).then(() => {
+            // --- Success ---
+            setButtonState('Copied!', 'success');
+            
+            setTimeout(() => {
+                setButtonState(originalButtonText, 'reset');
+            }, 2000); // Reset after 2 seconds
+
+        }).catch(err => {
+            // --- Error ---
+            console.error('Failed to copy text: ', err);
+            setButtonState('Error!', 'error');
+
+            setTimeout(() => {
+                setButtonState(originalButtonText, 'reset');
+            }, 2000); // Reset after 2 seconds
         });
     });
 });
-*/

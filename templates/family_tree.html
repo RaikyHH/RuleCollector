@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Family Tree — RuleCollector</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+</head>
+<body>
+    <nav class="nav-tabs" aria-label="Primary">
+        <div class="nav-brand">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <path d="M12 2L4 6v6c0 5 3.5 9.3 8 10.3C16.5 21.3 20 17 20 12V6l-8-4z" fill="#7d212b" opacity="0.25"/>
+                <path d="M12 2L4 6v6c0 5 3.5 9.3 8 10.3C16.5 21.3 20 17 20 12V6l-8-4z" stroke="#7d212b" stroke-width="1.5" stroke-linejoin="round"/>
+                <path d="M9 12l2 2 4-4" stroke="#c0404e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span class="nav-brand-name">RuleCollector</span>
+        </div>
+        <a href="{{ url_for('index') }}" class="nav-tab">Rules</a>
+        <a href="{{ url_for('sources_page') }}" class="nav-tab">Sources</a>
+        <a href="{{ url_for('heatmap_page') }}" class="nav-tab">Heatmap</a>
+        <a href="{{ url_for('collection_page') }}" class="nav-tab">Collection</a>
+        <a href="{{ url_for('tide_page') }}" class="nav-tab">Tide</a>
+        <a href="{{ url_for('fp_topology_page') }}" class="nav-tab">FP Topology</a>
+        <a href="{{ url_for('family_tree_page') }}" class="nav-tab active">Family Tree</a>
+    </nav>
+
+    <div class="page-container">
+        <div class="page-inner" style="max-width: 1400px;">
+            <h1 class="page-title">Rule Family Tree</h1>
+            <p class="page-subtitle">Rules that share a base title, grouped as a family with their versioned descendants. Click any node to open that rule.</p>
+
+            <section class="card">
+                <div class="card-header">
+                    <span class="card-label" id="ftStatus">Loading…</span>
+                </div>
+                <div class="card-body" style="padding: 10px; overflow-x: auto;">
+                    <div id="familyTrees"></div>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <script>
+    (function () {
+        'use strict';
+
+        const container = document.getElementById('familyTrees');
+        const status = document.getElementById('ftStatus');
+
+        const LEVEL_COLORS = {
+            critical: '#f85149',
+            high: '#f85149',
+            medium: '#d29922',
+            low: '#56c2e6',
+            informational: '#666666',
+            '': '#555555'
+        };
+        const LEVEL_BG = {
+            critical: '#3d1a1a',
+            high: '#3d1a1a',
+            medium: '#2d2008',
+            low: '#0a2a3d',
+            informational: '#1e1e1e',
+            '': '#1a1a1a'
+        };
+
+        function esc(s) {
+            return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        }
+
+        function renderFamily(family) {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'ft-family';
+            const header = document.createElement('div');
+            header.className = 'ft-family-header';
+            header.innerHTML = `<span class="ft-family-title">${esc(family.base_title)}</span>
+                <span class="ft-family-count">${family.members.length} versions</span>`;
+            wrapper.appendChild(header);
+
+            const svgWidth = 960;
+            const nodeHeight = 44;
+            const nodeWidth = 320;
+            const vGap = 56;
+            const svgHeight = 40 + family.members.length * vGap;
+
+            const svg = d3.select(wrapper).append('svg')
+                .attr('width', svgWidth)
+                .attr('height', svgHeight)
+                .attr('class', 'ft-svg');
+
+            const rootX = 24;
+            const childX = 180;
+
+            // Root node: base title
+            svg.append('rect')
+                .attr('x', rootX)
+                .attr('y', 20)
+                .attr('rx', 6).attr('ry', 6)
+                .attr('width', 140).attr('height', nodeHeight)
+                .attr('fill', '#1a0a0c')
+                .attr('stroke', '#7d212b')
+                .attr('stroke-width', 1.5);
+            svg.append('text')
+                .attr('x', rootX + 70)
+                .attr('y', 20 + nodeHeight / 2 + 4)
+                .attr('text-anchor', 'middle')
+                .attr('fill', '#c0404e')
+                .attr('font-family', 'JetBrains Mono, monospace')
+                .attr('font-size', '11px')
+                .attr('font-weight', '600')
+                .text('FAMILY');
+
+            const rootCenterY = 20 + nodeHeight / 2;
+            const rootRightX = rootX + 140;
+
+            // Children
+            family.members.forEach((m, i) => {
+                const y = 40 + i * vGap;
+                const lvl = (m.level || '').toLowerCase();
+                const color = LEVEL_COLORS[lvl] || LEVEL_COLORS[''];
+                const bg = LEVEL_BG[lvl] || LEVEL_BG[''];
+
+                // Connector path (right-angle)
+                svg.append('path')
+                    .attr('d', `M${rootRightX},${rootCenterY} H${rootRightX + 30} V${y + nodeHeight / 2} H${childX}`)
+                    .attr('fill', 'none')
+                    .attr('stroke', '#252525')
+                    .attr('stroke-width', 1);
+
+                const g = svg.append('g')
+                    .style('cursor', 'pointer')
+                    .on('click', () => { window.location.href = '/rule/' + encodeURIComponent(m.id); });
+
+                g.append('rect')
+                    .attr('x', childX)
+                    .attr('y', y)
+                    .attr('rx', 5).attr('ry', 5)
+                    .attr('width', nodeWidth)
+                    .attr('height', nodeHeight)
+                    .attr('fill', bg)
+                    .attr('stroke', color)
+                    .attr('stroke-width', 1);
+
+                g.append('text')
+                    .attr('x', childX + 10)
+                    .attr('y', y + 18)
+                    .attr('fill', '#cccccc')
+                    .attr('font-family', 'Inter, sans-serif')
+                    .attr('font-size', '12px')
+                    .attr('font-weight', '500')
+                    .text(m.title.length > 48 ? m.title.slice(0, 45) + '…' : m.title);
+
+                g.append('text')
+                    .attr('x', childX + 10)
+                    .attr('y', y + 35)
+                    .attr('fill', '#777')
+                    .attr('font-family', 'JetBrains Mono, monospace')
+                    .attr('font-size', '10px')
+                    .text(`${(m.level || 'n/a').toUpperCase()} · first seen: ${(m.first_seen_at || '').split('T')[0] || 'n/a'}`);
+
+                g.append('title').text(m.title);
+            });
+
+            container.appendChild(wrapper);
+        }
+
+        function render(data) {
+            container.innerHTML = '';
+            if (!data.families || !data.families.length) {
+                status.textContent = 'No versioned families found.';
+                return;
+            }
+            status.textContent = data.families.length + ' families with 2+ versions';
+            data.families.forEach(renderFamily);
+        }
+
+        fetch('/api/family-tree')
+            .then(r => r.json())
+            .then(render)
+            .catch(err => { status.textContent = 'Failed to load: ' + err.message; });
+    })();
+    </script>
+</body>
+</html>
