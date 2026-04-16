@@ -1,0 +1,1020 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sources — RuleCollector</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        /* ── Sources-specific layout ───────────────────────────────────── */
+        .sources-grid {
+            display: grid;
+            grid-template-columns: 1fr 340px;
+            gap: 20px;
+            align-items: start;
+        }
+        @media (max-width: 900px) {
+            .sources-grid { grid-template-columns: 1fr; }
+        }
+
+        /* ── Hero banner for SigmaHQ ────────────────────────────────────── */
+        .sigmahq-hero {
+            background: linear-gradient(135deg, #120508 0%, #1a0a10 60%, #0d0d0d 100%);
+            border: 1px solid rgba(125, 33, 43, 0.4);
+            border-radius: 10px;
+            padding: 20px 24px;
+            margin-bottom: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+        .sigmahq-hero::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, #7d212b, #c0404e, #7d212b);
+        }
+        .sigmahq-hero-top {
+            display: flex;
+            align-items: flex-start;
+            gap: 16px;
+            margin-bottom: 14px;
+        }
+        .sigmahq-logo {
+            flex-shrink: 0;
+            width: 40px;
+            height: 40px;
+        }
+        .sigmahq-hero-text { flex: 1; min-width: 0; }
+        .sigmahq-hero-name {
+            font-family: var(--font-family-mono);
+            font-size: 14px;
+            font-weight: 700;
+            color: #c0404e;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            margin-bottom: 3px;
+        }
+        .sigmahq-hero-desc {
+            font-size: 12px;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+        .sigmahq-hero-desc a { color: #c0404e; text-decoration: none; }
+        .sigmahq-hero-desc a:hover { text-decoration: underline; }
+
+        .sigmahq-stats {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+        }
+        @media (max-width: 700px) { .sigmahq-stats { grid-template-columns: repeat(2, 1fr); } }
+        .sigmahq-stat {
+            background: rgba(0,0,0,0.3);
+            border: 1px solid rgba(125, 33, 43, 0.2);
+            border-radius: 7px;
+            padding: 10px 12px;
+        }
+        .sigmahq-stat-val {
+            font-family: var(--font-family-mono);
+            font-size: 22px;
+            font-weight: 700;
+            color: #c0404e;
+            line-height: 1;
+            margin-bottom: 4px;
+        }
+        .sigmahq-stat-label {
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+            color: var(--text-subtle);
+        }
+
+        /* progress bar inside sigmahq stat */
+        .sigmahq-progress {
+            height: 3px;
+            background: rgba(125,33,43,0.2);
+            border-radius: 2px;
+            margin-top: 8px;
+            overflow: hidden;
+        }
+        .sigmahq-progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #7d212b, #c0404e);
+            border-radius: 2px;
+            transition: width 0.5s ease;
+        }
+
+        /* SigmaHQ source row actions */
+        .sigmahq-hero-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 16px;
+        }
+
+        /* ── Other sources list ──────────────────────────────────────────── */
+        .src-list-clean {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .src-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color-medium);
+            border-radius: 8px;
+            overflow: hidden;
+            transition: border-color 0.15s ease;
+        }
+        .src-card:hover { border-color: var(--border-color-light); }
+        .src-card-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 14px;
+        }
+        .src-card-icon {
+            width: 30px; height: 30px; flex-shrink: 0;
+            background: var(--bg-tertiary);
+            border-radius: 6px;
+            display: flex; align-items: center; justify-content: center;
+            color: var(--text-subtle);
+        }
+        .src-card-icon svg { width: 16px; height: 16px; }
+        .src-card-info { flex: 1; min-width: 0; }
+        .src-card-name {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-primary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .src-card-meta {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 3px;
+            flex-wrap: wrap;
+        }
+        .src-rule-count {
+            font-family: var(--font-family-mono);
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
+        .src-rule-count strong { color: var(--text-primary); }
+        .src-sync-time {
+            font-size: 11px;
+            color: var(--text-subtle);
+        }
+        .src-card-actions {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-shrink: 0;
+        }
+
+        .src-card-body {
+            padding: 0 14px 12px;
+            border-top: 1px solid var(--border-color-dark);
+            display: none;
+        }
+        .src-card.is-open .src-card-body { display: block; }
+        .src-card-body dl {
+            display: grid;
+            grid-template-columns: 60px 1fr;
+            gap: 4px 12px;
+            margin: 10px 0 0;
+            font-size: 12px;
+        }
+        .src-card-body dt { color: var(--text-subtle); font-weight: 600; align-self: start; padding-top: 1px; }
+        .src-card-body dd { color: var(--text-secondary); margin: 0; word-break: break-all; }
+        .src-card-body dd a { color: var(--text-secondary); text-decoration: none; }
+        .src-card-body dd a:hover { color: var(--text-primary); text-decoration: underline; }
+
+        /* Rule count breakdown bar */
+        .src-count-bar-wrap {
+            margin: 8px 0 0;
+        }
+        .src-count-bar-label {
+            font-size: 11px;
+            color: var(--text-subtle);
+            margin-bottom: 4px;
+        }
+        .src-count-bar {
+            height: 4px;
+            background: var(--bg-tertiary);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        .src-count-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #333, #555);
+            border-radius: 2px;
+        }
+        .src-count-bar-fill.sigmahq { background: linear-gradient(90deg, #7d212b, #c0404e); }
+
+        /* Last-sync status chip */
+        .sync-status-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-family: var(--font-family-mono);
+            font-size: 10px;
+            font-weight: 600;
+            padding: 2px 7px;
+            border-radius: 999px;
+            white-space: nowrap;
+        }
+        .sync-status-chip.is-ok {
+            background: rgba(63, 185, 80, 0.1);
+            border: 1px solid rgba(63, 185, 80, 0.25);
+            color: #3fb950;
+        }
+        .sync-status-chip.is-err {
+            background: rgba(248, 81, 73, 0.1);
+            border: 1px solid rgba(248, 81, 73, 0.25);
+            color: #f85149;
+        }
+        .sync-status-chip.is-never {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color-dark);
+            color: var(--text-subtle);
+        }
+        .sync-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+
+        /* Sidebar panel (right column) */
+        .sidebar-panel { display: flex; flex-direction: column; gap: 16px; }
+        .panel-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color-medium);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .panel-card-header {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border-color-dark);
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .panel-card-body { padding: 14px 16px; }
+
+        /* Sync-all progress area inside panel */
+        .sync-all-wrap { display: flex; flex-direction: column; gap: 10px; }
+        .sync-total-line {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+        .sync-total-line strong {
+            font-family: var(--font-family-mono);
+            color: var(--text-primary);
+            font-size: 14px;
+        }
+
+        /* Discovery form styling */
+        .discover-fields { display: flex; flex-direction: column; gap: 8px; }
+        .discover-field-label {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-subtle);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            margin-bottom: 3px;
+        }
+    </style>
+</head>
+<body>
+    <nav class="nav-tabs" aria-label="Primary">
+        <div class="nav-brand">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <path d="M12 2L4 6v6c0 5 3.5 9.3 8 10.3C16.5 21.3 20 17 20 12V6l-8-4z" fill="#7d212b" opacity="0.25"/>
+                <path d="M12 2L4 6v6c0 5 3.5 9.3 8 10.3C16.5 21.3 20 17 20 12V6l-8-4z" stroke="#7d212b" stroke-width="1.5" stroke-linejoin="round"/>
+                <path d="M9 12l2 2 4-4" stroke="#c0404e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span class="nav-brand-name">RuleCollector</span>
+        </div>
+        <a href="{{ url_for('index') }}" class="nav-tab">Rules</a>
+        <a href="{{ url_for('sources_page') }}" class="nav-tab active">Sources</a>
+        <a href="{{ url_for('heatmap_page') }}" class="nav-tab">Heatmap</a>
+        <a href="{{ url_for('collection_page') }}" class="nav-tab">Collection</a>
+        <a href="{{ url_for('tide_page') }}" class="nav-tab">Tide</a>
+        <a href="{{ url_for('decay_config_page') }}" class="nav-tab">Decay</a>
+    </nav>
+
+    <div class="page-container">
+        <div class="page-inner">
+            <h1 class="page-title">Sources</h1>
+            <p class="page-subtitle">Manage the repositories that feed your rule collection. SigmaHQ is the primary source.</p>
+
+            <div class="sources-grid">
+                <!-- ── LEFT: source list ── -->
+                <div>
+                    {% set sigmahq_src = namespace(found=none) %}
+                    {% set other_sources = [] %}
+                    {% for src in sources %}
+                        {% if src.name == sigmahq_source_name %}
+                            {% set sigmahq_src.found = src %}
+                        {% else %}
+                            {% set _ = other_sources.append(src) %}
+                        {% endif %}
+                    {% endfor %}
+
+                    {% set sigmahq_count = rule_counts.get(sigmahq_source_name, 0) %}
+                    {% set sigmahq_file_total = state_file_counts.get(sigmahq_source_name, 0) %}
+                    {% set sigmahq_sync_pct = ((sigmahq_count / sigmahq_file_total * 100) | round(0) | int) if sigmahq_file_total > 0 else 100 %}
+                    {% set sigmahq_share_pct = ((sigmahq_count / total_rules * 100) | round(0) | int) if total_rules > 0 else 0 %}
+
+                    <!-- SigmaHQ Hero Card -->
+                    <div class="sigmahq-hero">
+                        <div class="sigmahq-hero-top">
+                            <svg class="sigmahq-logo" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <rect width="40" height="40" rx="8" fill="#1a0a10"/>
+                                <path d="M20 6L8 12v10c0 7.5 5.3 14 12 15.5C27.7 36 33 29.5 33 22V12L20 6z" fill="#7d212b" opacity="0.3"/>
+                                <path d="M20 6L8 12v10c0 7.5 5.3 14 12 15.5C27.7 36 33 29.5 33 22V12L20 6z" stroke="#c0404e" stroke-width="1.5" stroke-linejoin="round"/>
+                                <path d="M15 20l3.5 3.5 7-7" stroke="#c0404e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            <div class="sigmahq-hero-text">
+                                <div class="sigmahq-hero-name">SigmaHQ / Sigma</div>
+                                <div class="sigmahq-hero-desc">
+                                    The community-maintained repository of detection rules in Sigma format.
+                                    Primary source — rules are structured by OS, category and technique.
+                                    <a href="https://github.com/SigmaHQ/sigma" target="_blank" rel="noopener">github.com/SigmaHQ/sigma</a>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="sigmahq-stats">
+                            <div class="sigmahq-stat">
+                                <div class="sigmahq-stat-val" id="shqRuleCount">{{ sigmahq_count | default(0) }}</div>
+                                <div class="sigmahq-stat-label">
+                                    {% if sigmahq_file_total > 0 %}Rules synced von {{ sigmahq_file_total }} Dateien{% else %}Rules synced{% endif %}
+                                </div>
+                                <div class="sigmahq-progress">
+                                    <div class="sigmahq-progress-fill" style="width: {{ sigmahq_sync_pct }}%"></div>
+                                </div>
+                            </div>
+                            <div class="sigmahq-stat">
+                                <div class="sigmahq-stat-val" id="shqPct">{{ sigmahq_sync_pct }}%</div>
+                                <div class="sigmahq-stat-label">Dateien als Regeln erkannt</div>
+                            </div>
+                            <div class="sigmahq-stat">
+                                <div class="sigmahq-stat-val" id="shqStatus">
+                                    {% if sigmahq_src.found %}
+                                    <span style="font-size:13px;color:{% if sigmahq_src.found.enabled %}#3fb950{% else %}#666{% endif %}">
+                                        {% if sigmahq_src.found.enabled %}Active{% else %}Disabled{% endif %}
+                                    </span>
+                                    {% else %}
+                                    <span style="font-size:13px;color:#666">Not added</span>
+                                    {% endif %}
+                                </div>
+                                <div class="sigmahq-stat-label">Source status</div>
+                            </div>
+                            <div class="sigmahq-stat">
+                                {% set shq_last = state_last_sync.get(sigmahq_source_name, '') %}
+                                <div class="sigmahq-stat-val" id="shqLastSync" style="font-size:13px;color:var(--text-secondary)">
+                                    {% if shq_last %}{{ shq_last[:10] }}{% else %}—{% endif %}
+                                </div>
+                                <div class="sigmahq-stat-label">Last synced</div>
+                            </div>
+                        </div>
+
+                        <div class="sigmahq-hero-actions">
+                            {% if sigmahq_src.found %}
+                            {% for src in sources %}{% if src.name == sigmahq_source_name %}
+                            <button type="button" class="btn btn-primary btn-sync src-sync-btn"
+                                    data-index="{{ loop.index0 }}" data-name="{{ src.name }}">
+                                <svg class="icon-sync" viewBox="0 0 24 24" fill="currentColor" width="14" height="14" aria-hidden="true"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46A7.93 7.93 0 0 0 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74A7.93 7.93 0 0 0 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>
+                                Sync SigmaHQ
+                            </button>
+                            {% endif %}{% endfor %}
+                            {% else %}
+                            <button type="button" class="btn btn-primary" id="quickAddSigmaHQ">
+                                + Add SigmaHQ
+                            </button>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Other sources -->
+                    {% if sources %}
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+                        <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-subtle);">
+                            All Sources · {{ sources|length }} configured
+                        </div>
+                        <button type="button" class="btn btn-secondary btn-sm" id="syncAllBtn">
+                            <svg class="icon-sync" viewBox="0 0 24 24" fill="currentColor" width="12" height="12" aria-hidden="true"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46A7.93 7.93 0 0 0 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74A7.93 7.93 0 0 0 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>
+                            Sync All
+                        </button>
+                    </div>
+                    <ul class="src-list-clean" id="sourcesTable">
+                        {% for src in sources %}
+                        {% set is_sigmahq = (src.name == sigmahq_source_name) %}
+                        {% set src_count = rule_counts.get(src.name, 0) %}
+                        {% set src_file_total = state_file_counts.get(src.name, 0) %}
+                        {% set src_pct = ((src_count / total_rules * 100) | round(0) | int) if total_rules > 0 else 0 %}
+                        {% set src_sync_pct = ((src_count / src_file_total * 100) | round(0) | int) if src_file_total > 0 else 0 %}
+                        <li class="src-card{% if is_sigmahq %} src-card--primary{% endif %}" data-index="{{ loop.index0 }}">
+                            <div class="src-card-header">
+                                <div class="src-card-icon">
+                                    {% if is_sigmahq %}
+                                    <svg viewBox="0 0 24 24" fill="none"><path d="M12 2L4 6v6c0 5 3.5 9.3 8 10.3C16.5 21.3 20 17 20 12V6l-8-4z" fill="#7d212b" opacity="0.3"/><path d="M12 2L4 6v6c0 5 3.5 9.3 8 10.3C16.5 21.3 20 17 20 12V6l-8-4z" stroke="#c0404e" stroke-width="1.5"/><path d="M9 12l2 2 4-4" stroke="#c0404e" stroke-width="1.5" stroke-linecap="round"/></svg>
+                                    {% else %}
+                                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/></svg>
+                                    {% endif %}
+                                </div>
+                                <div class="src-card-info">
+                                    <div class="src-card-name">{{ src.name }}{% if is_sigmahq %} <span style="font-size:9px;color:#c0404e;font-weight:700;letter-spacing:.05em;text-transform:uppercase;margin-left:4px">Primary</span>{% endif %}</div>
+                                    <div class="src-card-meta">
+                                        <span class="src-rule-count">
+                                            <strong>{{ src_count }}</strong>
+                                            {% if src_file_total > 0 %} / {{ src_file_total }} Dateien{% else %} rules{% endif %}
+                                        </span>
+                                        {% if total_rules > 0 %}
+                                        <span class="src-sync-time">{{ src_pct }}% of total</span>
+                                        {% endif %}
+                                        <span class="sync-status-chip is-never" data-sync-chip="{{ src.name }}">
+                                            <span class="sync-dot"></span> Never synced
+                                        </span>
+                                    </div>
+                                </div>
+                                <div class="src-card-actions">
+                                    <button type="button" class="btn-icon src-sync-btn" title="Sync this source"
+                                            data-index="{{ loop.index0 }}" data-name="{{ src.name }}">
+                                        <svg viewBox="0 0 24 24" fill="currentColor" width="15" height="15"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46A7.93 7.93 0 0 0 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74A7.93 7.93 0 0 0 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>
+                                    </button>
+                                    <label class="toggle-switch" title="Enable / disable">
+                                        <input type="checkbox" class="src-enabled" {% if src.enabled %}checked{% endif %}>
+                                        <span class="slider"></span>
+                                    </label>
+                                    <button type="button" class="btn-icon btn-icon--danger src-delete" title="Remove source">
+                                        <svg viewBox="0 0 24 24" fill="currentColor" width="15" height="15"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                                    </button>
+                                    <button type="button" class="btn-icon src-expand-btn" title="Details" aria-expanded="false">
+                                        <svg class="src-chevron" viewBox="0 0 16 16" fill="currentColor" width="14" height="14"><path d="M4.5 6l3.5 3.5L11.5 6" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="src-card-body">
+                                <dl>
+                                    <dt>URL</dt>
+                                    <dd><a href="{{ src.url }}" target="_blank" rel="noopener noreferrer">{{ src.url }}</a></dd>
+                                    <dt>Type</dt>
+                                    <dd>{{ src.type }}</dd>
+                                </dl>
+                                <div class="src-count-bar-wrap">
+                                    {% if src_file_total > 0 %}
+                                    <div class="src-count-bar-label">{{ src_count }} von {{ src_file_total }} Dateien als Regeln erkannt ({{ src_sync_pct }}%)</div>
+                                    <div class="src-count-bar">
+                                        <div class="src-count-bar-fill{% if is_sigmahq %} sigmahq{% endif %}" style="width:{{ src_sync_pct }}%"></div>
+                                    </div>
+                                    {% else %}
+                                    <div class="src-count-bar-label">{{ src_count }} von {{ total_rules }} gesamt ({{ src_pct }}%)</div>
+                                    <div class="src-count-bar">
+                                        <div class="src-count-bar-fill{% if is_sigmahq %} sigmahq{% endif %}" style="width:{{ src_pct }}%"></div>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <div class="card" style="text-align:center;padding:32px;color:var(--text-subtle);">
+                        No sources configured yet. Add one using the form →
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- ── RIGHT: sidebar panel ── -->
+                <div class="sidebar-panel">
+
+                    <!-- Auto-Sync Scheduler -->
+                    <div class="panel-card" id="schedulerCard">
+                        <div class="panel-card-header" style="display:flex;align-items:center;justify-content:space-between;">
+                            <span>Auto-Sync</span>
+                            <label class="toggle-switch" title="Scheduler aktivieren">
+                                <input type="checkbox" id="schedulerToggle">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                        <div class="panel-card-body">
+                            <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+                                <span style="font-size:12px;color:var(--text-secondary);flex:1">Interval (Stunden)</span>
+                                <input type="number" id="schedulerInterval" min="1" max="168" value="24"
+                                       style="width:64px;text-align:right;background:var(--bg-tertiary);border:1px solid var(--border-color);border-radius:5px;color:var(--text-primary);font-size:13px;padding:4px 7px;">
+                            </div>
+                            <div id="schedulerStatus" style="font-size:11px;color:var(--text-tertiary);font-family:var(--font-family-mono);min-height:32px;line-height:1.6;">Lade…</div>
+                            <button type="button" class="btn btn-secondary" id="schedulerSaveBtn" style="width:100%;margin-top:10px;font-size:12px;">Speichern</button>
+                        </div>
+                    </div>
+
+                    <!-- Add new source -->
+                    <div class="panel-card">
+                        <div class="panel-card-header">Add Source</div>
+                        <div class="panel-card-body">
+                            <form id="discoverForm" autocomplete="off">
+                                <div class="discover-fields">
+                                    <div>
+                                        <div class="discover-field-label">Repository URL</div>
+                                        <input type="text" id="repoUrl" name="repo_url" class="text-field"
+                                               placeholder="https://github.com/owner/repo"
+                                               aria-label="GitHub repository URL" required style="width:100%">
+                                    </div>
+                                    <div>
+                                        <div class="discover-field-label">GitHub Token <span style="color:var(--text-subtle)">(optional)</span></div>
+                                        <input type="password" id="githubToken" name="github_token" class="text-field"
+                                               placeholder="ghp_…" aria-label="GitHub personal access token"
+                                               style="width:100%">
+                                    </div>
+                                    <button type="submit" class="btn btn-primary" id="discoverBtn" style="width:100%">
+                                        <span class="btn-label">Discover</span>
+                                    </button>
+                                </div>
+                            </form>
+                            <div id="discoverMessage" class="discover-message" role="alert" style="margin-top:8px"></div>
+                            <div id="discoverResult" class="discover-result" aria-live="polite" style="margin-top:10px">
+                                <dl>
+                                    <dt>Name</dt><dd id="resName"></dd>
+                                    <dt>Folder</dt><dd id="resFolder"></dd>
+                                    <dt>API URL</dt><dd id="resUrl"></dd>
+                                    <dt>Est. rules</dt><dd id="resCount"></dd>
+                                </dl>
+                                <div class="result-actions" style="margin-top:10px;display:flex;gap:8px;">
+                                    <button type="button" class="btn btn-primary" id="addSourceBtn" style="flex:1">Add Source</button>
+                                    <button type="button" class="btn btn-secondary" id="cancelAddBtn">Cancel</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- GitHub Token -->
+                    <div class="panel-card" id="tokenCard">
+                        <div class="panel-card-header">
+                            GitHub Token
+                            <span class="token-status" id="tokenStatus"></span>
+                        </div>
+                        <div class="panel-card-body">
+                            <p class="token-hint" style="margin:0 0 10px">Shared across all sources. Stored in <code>config.json</code>.</p>
+                            <form id="tokenForm" autocomplete="off" style="display:flex;gap:8px;flex-wrap:wrap">
+                                <input type="password" id="tokenInput" class="text-field" placeholder="ghp_…"
+                                       autocomplete="new-password" style="flex:1;min-width:0">
+                                <button type="submit" class="btn btn-secondary" id="tokenSaveBtn">Save</button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Database summary -->
+                    <div class="panel-card">
+                        <div class="panel-card-header">Database</div>
+                        <div class="panel-card-body">
+                            <div style="display:flex;flex-direction:column;gap:8px">
+                                <div style="display:flex;align-items:baseline;justify-content:space-between">
+                                    <span style="font-size:12px;color:var(--text-subtle)">Total rules</span>
+                                    <span style="font-family:var(--font-family-mono);font-size:18px;font-weight:700;color:var(--text-primary)">{{ total_rules | default(0) }}</span>
+                                </div>
+                                <div style="display:flex;align-items:baseline;justify-content:space-between">
+                                    <span style="font-size:12px;color:var(--text-subtle)">Sources</span>
+                                    <span style="font-family:var(--font-family-mono);font-size:14px;color:var(--text-primary)">{{ sources|length }}</span>
+                                </div>
+                                {% for src in sources %}
+                                {% set src_count = rule_counts.get(src.name, 0) %}
+                                {% set src_pct = ((src_count / total_rules * 100) | round(1)) if total_rules > 0 else 0 %}
+                                <div>
+                                    <div style="display:flex;justify-content:space-between;margin-bottom:3px">
+                                        <span style="font-size:11px;color:var(--text-subtle);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60%">{{ src.name }}</span>
+                                        <span style="font-family:var(--font-family-mono);font-size:11px;color:var(--text-secondary)">{{ src_count }}</span>
+                                    </div>
+                                    <div class="src-count-bar">
+                                        <div class="src-count-bar-fill{% if src.name == sigmahq_source_name %} sigmahq{% endif %}" style="width:{{ src_pct }}%"></div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="toastContainer" class="toast-container" aria-live="polite" aria-atomic="false"></div>
+
+    <script>
+    (function () {
+        // ── Token update ──────────────────────────────────────────────────────
+        const tokenForm    = document.getElementById('tokenForm');
+        const tokenInput   = document.getElementById('tokenInput');
+        const tokenSaveBtn = document.getElementById('tokenSaveBtn');
+        const tokenStatus  = document.getElementById('tokenStatus');
+
+        function setTokenStatus(msg, ok) {
+            tokenStatus.textContent = msg;
+            tokenStatus.className = 'token-status ' + (ok ? 'is-ok' : 'is-err');
+            setTimeout(() => { tokenStatus.textContent = ''; tokenStatus.className = 'token-status'; }, 4000);
+        }
+
+        if (tokenForm) {
+            tokenForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                tokenSaveBtn.disabled = true; tokenSaveBtn.textContent = 'Saving…';
+                try {
+                    const resp = await fetch('/api/sources/token', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ github_token: tokenInput.value })
+                    });
+                    const data = await resp.json();
+                    if (!resp.ok || data.error) {
+                        setTokenStatus(data.error || 'Failed.', false);
+                    } else {
+                        tokenInput.value = '';
+                        tokenInput.placeholder = 'Token saved';
+                        setTokenStatus('Updated for ' + data.updated + ' source(s)', true);
+                    }
+                } catch (err) {
+                    setTokenStatus('Network error', false);
+                } finally {
+                    tokenSaveBtn.disabled = false; tokenSaveBtn.textContent = 'Save';
+                }
+            });
+        }
+
+        // ── Discover / Add ────────────────────────────────────────────────────
+        const discoverForm  = document.getElementById('discoverForm');
+        const discoverBtn   = document.getElementById('discoverBtn');
+        const discoverBtnLbl = discoverBtn.querySelector('.btn-label');
+        const msgBox        = document.getElementById('discoverMessage');
+        const resultBox     = document.getElementById('discoverResult');
+        const addBtn        = document.getElementById('addSourceBtn');
+        const cancelBtn     = document.getElementById('cancelAddBtn');
+        let pendingSource   = null;
+
+        function showMsg(text, kind) { msgBox.textContent = text; msgBox.className = 'discover-message is-' + kind; }
+        function clearMsg() { msgBox.textContent = ''; msgBox.className = 'discover-message'; }
+        function hideResult() { resultBox.classList.remove('is-visible'); pendingSource = null; }
+
+        discoverForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const url = document.getElementById('repoUrl').value.trim();
+            if (!url) return;
+            clearMsg(); hideResult();
+            discoverBtn.disabled = true;
+            discoverBtnLbl.innerHTML = '<span class="spinner" aria-hidden="true"></span> Discovering…';
+            try {
+                const resp = await fetch('/api/sources/discover', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ repo_url: url, github_token: document.getElementById('githubToken').value.trim() })
+                });
+                const data = await resp.json();
+                if (!resp.ok || data.error) { showMsg(data.error || 'Discovery failed.', 'error'); return; }
+                pendingSource = { name: data.name, url: data.url, type: data.type, enabled: true };
+                document.getElementById('resName').textContent   = data.name;
+                document.getElementById('resFolder').textContent = data.folder_path || '(repository root)';
+                document.getElementById('resUrl').textContent    = data.url;
+                document.getElementById('resCount').textContent  = data.estimated_rules + (data.truncated ? ' (may be more)' : '');
+                resultBox.classList.add('is-visible');
+            } catch (err) {
+                showMsg('Network error: ' + err.message, 'error');
+            } finally {
+                discoverBtn.disabled = false;
+                discoverBtnLbl.textContent = 'Discover';
+            }
+        });
+
+        cancelBtn.addEventListener('click', () => { hideResult(); clearMsg(); });
+
+        addBtn.addEventListener('click', async () => {
+            if (!pendingSource) return;
+            addBtn.disabled = true; addBtn.textContent = 'Adding…';
+            try {
+                const resp = await fetch('/api/sources/add', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(pendingSource)
+                });
+                const data = await resp.json();
+                if (!resp.ok || data.error) {
+                    showMsg(data.error || 'Failed to add.', 'error');
+                    addBtn.disabled = false; addBtn.textContent = 'Add Source';
+                    return;
+                }
+                window.location.reload();
+            } catch (err) {
+                showMsg('Network error: ' + err.message, 'error');
+                addBtn.disabled = false; addBtn.textContent = 'Add Source';
+            }
+        });
+
+        // ── Toast ─────────────────────────────────────────────────────────────
+        const toastContainer = document.getElementById('toastContainer');
+
+        function escHtml(s) {
+            return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        }
+
+        function createToast(title) {
+            const t = document.createElement('div');
+            t.className = 'toast';
+            t.innerHTML = `
+                <div class="toast-header">
+                    <span class="toast-title">${escHtml(title)}</span>
+                    <button class="toast-close" aria-label="Dismiss">&times;</button>
+                </div>
+                <ul class="toast-events"></ul>
+                <div class="toast-footer"></div>`;
+            t.querySelector('.toast-close').addEventListener('click', () => dismissToast(t));
+            toastContainer.appendChild(t);
+            t.getBoundingClientRect();
+            t.classList.add('is-visible');
+            return t;
+        }
+
+        function dismissToast(t) {
+            t.classList.remove('is-visible');
+            t.addEventListener('transitionend', () => t.remove(), { once: true });
+        }
+
+        function toastAddEvent(t, ev) {
+            const ul = t.querySelector('.toast-events');
+            const li = document.createElement('li');
+            li.className = 'toast-event toast-event--' + ev.type;
+
+            if (ev.type === 'source_start') {
+                li.innerHTML = `<span class="spinner-sm" aria-hidden="true"></span> <strong>${escHtml(ev.source)}</strong>`;
+                li.dataset.source = ev.source;
+            } else if (ev.type === 'source_done') {
+                const existing = ul.querySelector(`[data-source="${CSS.escape(ev.source)}"]`);
+                const c = ev.counts || {};
+                const parts = [];
+                if (c.session_rules_added_new)        parts.push(`+${c.session_rules_added_new} new`);
+                if (c.session_rules_updated_content)   parts.push(`${c.session_rules_updated_content} updated`);
+                if (c.session_rules_added_version)     parts.push(`${c.session_rules_added_version} versioned`);
+                if (c.session_rules_updated_ts)        parts.push(`${c.session_rules_updated_ts} unchanged`);
+                const total = (c.session_rules_added_new || 0) + (c.session_rules_updated_content || 0) + (c.session_rules_added_version || 0) + (c.session_rules_updated_ts || 0);
+                const summary = parts.length ? `${total} rules · ` + parts.join(' · ') : 'no changes';
+                const target = existing || li;
+                target.className = 'toast-event toast-event--source_done';
+                target.innerHTML = `<span class="toast-ok">✓</span> <strong>${escHtml(ev.source)}</strong> <span class="toast-counts">${summary}</span>`;
+                if (existing) return;
+            } else if (ev.type === 'source_error') {
+                const existing = ul.querySelector(`[data-source="${CSS.escape(ev.source)}"]`);
+                const target = existing || li;
+                target.className = 'toast-event toast-event--source_error';
+                target.innerHTML = `<span class="toast-err">✗</span> <strong>${escHtml(ev.source)}</strong> <span class="toast-counts">${escHtml(ev.error || 'error')}</span>`;
+                if (existing) return;
+            } else if (ev.type === 'fatal') {
+                li.className = 'toast-event toast-event--source_error';
+                li.textContent = 'Fatal: ' + (ev.error || 'unknown error');
+            } else { return; }
+            ul.appendChild(li);
+        }
+
+        function toastFinish(t, status, totals) {
+            const footer = t.querySelector('.toast-footer');
+            const added   = totals.session_rules_added_new || 0;
+            const updated = totals.session_rules_updated_content || 0;
+            if (status === 'done') {
+                footer.className = 'toast-footer toast-footer--done';
+                footer.textContent = `Sync complete · ${added} new · ${updated} updated`;
+                localStorage.setItem('rc_last_sync_finish', Date.now());
+                localStorage.setItem('rc_last_visit', Date.now() - 5000);
+                // Reload page after short delay to refresh counts
+                setTimeout(() => window.location.reload(), 2500);
+            } else {
+                footer.className = 'toast-footer toast-footer--error';
+                footer.textContent = 'Sync finished with errors';
+            }
+            if (status === 'done') setTimeout(() => dismissToast(t), 12000);
+        }
+
+        // ── Sync logic ────────────────────────────────────────────────────────
+        function startSync(indices, label) {
+            fetch('/api/sources/sync', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(indices !== null ? { indices } : {})
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) { alert(data.error); return; }
+                const toast = createToast('Syncing: ' + label);
+                const es = new EventSource('/api/sync/stream/' + data.job_id);
+                es.onmessage = (e) => {
+                    const ev = JSON.parse(e.data);
+                    if (ev.type === 'finished') {
+                        es.close();
+                        toastFinish(toast, ev.status, ev.totals || {});
+                    } else {
+                        toastAddEvent(toast, ev);
+                    }
+                };
+                es.onerror = () => { es.close(); toastFinish(toast, 'error', {}); };
+            })
+            .catch(err => alert('Network error: ' + err.message));
+        }
+
+        // ── Source card actions ───────────────────────────────────────────────
+        document.querySelectorAll('.src-sync-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                startSync([parseInt(btn.dataset.index, 10)], btn.dataset.name);
+            });
+        });
+
+        const syncAllBtn = document.getElementById('syncAllBtn');
+        if (syncAllBtn) syncAllBtn.addEventListener('click', () => startSync(null, 'All enabled sources'));
+
+        const srcList = document.getElementById('sourcesTable');
+        if (srcList) {
+            srcList.addEventListener('click', async (e) => {
+                const card = e.target.closest('.src-card');
+                if (!card) return;
+                const idx  = parseInt(card.dataset.index, 10);
+                const name = card.querySelector('.src-card-name')?.textContent.trim().replace('Primary','').trim();
+
+                // Expand toggle
+                if (e.target.closest('.src-expand-btn')) {
+                    const isOpen = card.classList.toggle('is-open');
+                    e.target.closest('.src-expand-btn').setAttribute('aria-expanded', isOpen);
+                    return;
+                }
+                // Delete
+                if (e.target.closest('.src-delete')) {
+                    if (!confirm(`Remove "${name}" from sources?`)) return;
+                    try {
+                        const resp = await fetch('/api/sources/delete', {
+                            method: 'DELETE',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ index: idx })
+                        });
+                        const data = await resp.json();
+                        if (!resp.ok || data.error) { alert(data.error || 'Failed to delete.'); return; }
+                        window.location.reload();
+                    } catch (err) { alert('Network error: ' + err.message); }
+                }
+            });
+
+            srcList.addEventListener('change', async (e) => {
+                if (!e.target.classList.contains('src-enabled')) return;
+                const card    = e.target.closest('.src-card');
+                const idx     = parseInt(card.dataset.index, 10);
+                const enabled = e.target.checked;
+                try {
+                    const resp = await fetch('/api/sources/toggle', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ index: idx, enabled })
+                    });
+                    const data = await resp.json();
+                    if (!resp.ok || data.error) { e.target.checked = !enabled; alert(data.error || 'Failed.'); }
+                } catch (err) { e.target.checked = !enabled; alert('Network error: ' + err.message); }
+            });
+        }
+
+        // ── Load last-sync timestamps into status chips ────────────────────────
+        function loadLastSyncTimes() {
+            const chips = document.querySelectorAll('[data-sync-chip]');
+            if (!chips.length) return;
+            fetch('/api/sync/history?limit=200')
+                .then(r => r.json())
+                .then(rows => {
+                    if (!Array.isArray(rows)) return;
+                    const latest = {};
+                    rows.forEach(r => { if (!latest[r.source_name]) latest[r.source_name] = r; });
+
+                    chips.forEach(chip => {
+                        const src   = chip.dataset.syncChip;
+                        const entry = latest[src];
+                        if (!entry) return;
+                        const dt  = new Date(entry.finished_at);
+                        const ago = formatAgo(dt);
+                        const ok  = entry.status === 'done';
+                        chip.className = 'sync-status-chip ' + (ok ? 'is-ok' : 'is-err');
+                        chip.innerHTML = `<span class="sync-dot"></span> ${ago}`;
+                        chip.title = dt.toLocaleString();
+                    });
+
+                    // Update SigmaHQ hero last-sync
+                    const shqEl = document.getElementById('shqLastSync');
+                    const shqName = {{ sigmahq_source_name | tojson }};
+                    if (shqEl && latest[shqName]) {
+                        const dt = new Date(latest[shqName].finished_at);
+                        const ok = latest[shqName].status === 'done';
+                        shqEl.textContent = formatAgo(dt);
+                        shqEl.style.color = ok ? '#3fb950' : '#f85149';
+                    }
+                })
+                .catch(() => {});
+        }
+
+        function formatAgo(dt) {
+            const diff = Date.now() - dt.getTime();
+            const min  = Math.floor(diff / 60000);
+            const hrs  = Math.floor(diff / 3600000);
+            const days = Math.floor(diff / 86400000);
+            if (min < 2)   return 'just now';
+            if (min < 60)  return min + 'm ago';
+            if (hrs < 24)  return hrs + 'h ago';
+            if (days < 7)  return days + 'd ago';
+            return dt.toLocaleDateString();
+        }
+
+        loadLastSyncTimes();
+
+        // Quick-add SigmaHQ button
+        const quickAddBtn = document.getElementById('quickAddSigmaHQ');
+        if (quickAddBtn) {
+            quickAddBtn.addEventListener('click', () => {
+                document.getElementById('repoUrl').value = 'https://github.com/SigmaHQ/sigma';
+                document.getElementById('discoverForm').dispatchEvent(new Event('submit'));
+                document.getElementById('repoUrl').scrollIntoView({ behavior: 'smooth', block: 'center' });
+            });
+        }
+
+    })();
+    </script>
+
+    <script>
+    // ── Scheduler widget ────────────────────────────────────────────────────
+    (function () {
+        const toggle   = document.getElementById('schedulerToggle');
+        const interval = document.getElementById('schedulerInterval');
+        const statusEl = document.getElementById('schedulerStatus');
+        const saveBtn  = document.getElementById('schedulerSaveBtn');
+
+        function fmtSeconds(s) {
+            if (s == null) return '—';
+            s = Math.round(s);
+            if (s < 60)   return s + ' s';
+            if (s < 3600) return Math.round(s / 60) + ' min';
+            const h = Math.floor(s / 3600), m = Math.round((s % 3600) / 60);
+            return h + ' h' + (m ? ' ' + m + ' min' : '');
+        }
+
+        function renderStatus(d) {
+            const parts = [];
+            if (d.last_sync) {
+                const dt = new Date(d.last_sync);
+                parts.push('Letzter Sync: ' + dt.toLocaleString('de-DE', {
+                    day: '2-digit', month: '2-digit', year: 'numeric',
+                    hour: '2-digit', minute: '2-digit'
+                }));
+            } else {
+                parts.push('Noch nie synchronisiert');
+            }
+            if (d.enabled && d.next_sync_in_seconds != null) {
+                parts.push('Nächster Sync in: ' + fmtSeconds(d.next_sync_in_seconds));
+            } else if (!d.enabled) {
+                parts.push('Scheduler deaktiviert');
+            }
+            statusEl.textContent = parts.join('\n');
+        }
+
+        function loadStatus() {
+            fetch('/api/scheduler/status')
+                .then(r => r.json())
+                .then(d => {
+                    toggle.checked = !!d.enabled;
+                    if (d.interval_hours) interval.value = d.interval_hours;
+                    renderStatus(d);
+                })
+                .catch(() => { statusEl.textContent = 'Status nicht verfügbar'; });
+        }
+
+        saveBtn.addEventListener('click', function () {
+            saveBtn.disabled = true;
+            fetch('/api/scheduler/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    enabled: toggle.checked,
+                    interval_hours: parseFloat(interval.value) || 24
+                })
+            })
+            .then(r => r.json())
+            .then(d => {
+                if (d.ok) loadStatus();
+                else statusEl.textContent = 'Fehler: ' + (d.error || 'Unbekannt');
+            })
+            .catch(() => { statusEl.textContent = 'Speichern fehlgeschlagen'; })
+            .finally(() => { saveBtn.disabled = false; });
+        });
+
+        loadStatus();
+        setInterval(loadStatus, 30000);
+    })();
+    </script>
+</body>
+</html>

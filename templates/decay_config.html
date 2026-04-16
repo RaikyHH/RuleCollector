@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Decay Config — RuleCollector</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <nav class="nav-tabs" aria-label="Primary">
+        <div class="nav-brand">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <path d="M12 2L4 6v6c0 5 3.5 9.3 8 10.3C16.5 21.3 20 17 20 12V6l-8-4z" fill="#7d212b" opacity="0.25"/>
+                <path d="M12 2L4 6v6c0 5 3.5 9.3 8 10.3C16.5 21.3 20 17 20 12V6l-8-4z" stroke="#7d212b" stroke-width="1.5" stroke-linejoin="round"/>
+                <path d="M9 12l2 2 4-4" stroke="#c0404e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span class="nav-brand-name">RuleCollector</span>
+        </div>
+        <a href="{{ url_for('index') }}" class="nav-tab">Rules</a>
+        <a href="{{ url_for('sources_page') }}" class="nav-tab">Sources</a>
+        <a href="{{ url_for('heatmap_page') }}" class="nav-tab">Heatmap</a>
+        <a href="{{ url_for('collection_page') }}" class="nav-tab">Collection</a>
+        <a href="{{ url_for('tide_page') }}" class="nav-tab">Tide</a>
+        <a href="{{ url_for('decay_config_page') }}" class="nav-tab active">Decay</a>
+    </nav>
+
+    <div class="page-container">
+        <div class="page-inner">
+            <h1 class="page-title">Rule Decay Configuration</h1>
+            <p class="page-subtitle">
+                Decay scoring tracks how stale a rule is based on its last update date.
+                Configure the age thresholds at which a rule moves through warning, greyout, and hidden states.
+            </p>
+
+            <section class="card">
+                <div class="card-header">
+                    <span class="card-label">Decay Thresholds</span>
+                    <div id="saveStatus" class="save-status" hidden></div>
+                </div>
+                <div class="card-body" style="padding:24px;">
+                    <div class="dc-form">
+                        <div class="dc-field-group">
+                            <label class="dc-label">
+                                <span class="dc-label-text">Feature enabled</span>
+                                <span class="dc-label-sub">Toggle decay scoring on or off globally</span>
+                            </label>
+                            <label class="dc-toggle">
+                                <input type="checkbox" id="decayEnabled" {% if features.decay_scoring %}checked{% endif %}>
+                                <span class="dc-toggle-track"><span class="dc-toggle-thumb"></span></span>
+                                <span id="decayEnabledLabel" class="dc-toggle-label">{% if features.decay_scoring %}Enabled{% else %}Disabled{% endif %}</span>
+                            </label>
+                        </div>
+
+                        <div class="dc-separator"></div>
+
+                        <div class="dc-field-group">
+                            <label class="dc-label" for="warnDays">
+                                <span class="dc-label-text dc-state-warn">&#9888; Warning threshold (days)</span>
+                                <span class="dc-label-sub">After this many days without an update, the rule's decay score shows a warning in the detail panel</span>
+                            </label>
+                            <div class="dc-input-wrap">
+                                <input type="number" id="warnDays" class="dc-input" min="1" max="3650" value="{{ features.decay_warn_days|default(365) }}">
+                                <span class="dc-input-unit">days</span>
+                            </div>
+                        </div>
+
+                        <div class="dc-field-group">
+                            <label class="dc-label" for="greyDays">
+                                <span class="dc-label-text dc-state-grey">&#9723; Greyout threshold (days)</span>
+                                <span class="dc-label-sub">Rules beyond this threshold are visually dimmed in the sidebar to indicate staleness</span>
+                            </label>
+                            <div class="dc-input-wrap">
+                                <input type="number" id="greyDays" class="dc-input" min="1" max="3650" value="{{ features.decay_grey_days|default(548) }}">
+                                <span class="dc-input-unit">days</span>
+                            </div>
+                        </div>
+
+                        <div class="dc-field-group">
+                            <label class="dc-label" for="hideDays">
+                                <span class="dc-label-text dc-state-hide">&#128683; Hide threshold (days)</span>
+                                <span class="dc-label-sub">Rules beyond this are hidden from the sidebar by default. Enable the "Decayed" filter to show them again. Rules with "No Decay" pin are never hidden.</span>
+                            </label>
+                            <div class="dc-input-wrap">
+                                <input type="number" id="hideDays" class="dc-input" min="1" max="3650" value="{{ features.decay_hide_days|default(730) }}">
+                                <span class="dc-input-unit">days</span>
+                            </div>
+                        </div>
+
+                        <div class="dc-actions">
+                            <button type="button" class="btn btn-primary" id="saveBtn">Save Settings</button>
+                            <button type="button" class="btn btn-secondary" id="resetBtn">Reset to Defaults</button>
+                        </div>
+                    </div>
+
+                    <div class="dc-preview">
+                        <div class="dc-preview-title">Score Preview</div>
+                        <p class="dc-preview-sub">Based on current settings, this is how scores are interpreted:</p>
+                        <div id="previewTimeline" class="dc-timeline"></div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="card">
+                <div class="card-header"><span class="card-label">How Decay Works</span></div>
+                <div class="card-body" style="padding:20px 24px; line-height:1.7; color:var(--text-secondary);">
+                    <p>The <strong>Decay Score</strong> (0–100) is shown in every rule's detail panel under <em>Last Updated</em>. It is computed from the rule's <code>last_updated_at</code> timestamp (falling back to <code>first_seen_at</code> if no update exists).</p>
+                    <ul style="padding-left:20px; margin:12px 0;">
+                        <li><strong>100</strong> — freshly updated, no age concerns.</li>
+                        <li><strong>~70+</strong> — within warning threshold, still active.</li>
+                        <li><strong>~40–70</strong> — approaching greyout, analyst review advised.</li>
+                        <li><strong>0</strong> — at hide threshold, rule would be suppressed by default.</li>
+                    </ul>
+                    <p>The score decreases linearly from 100 at day 0 to 0 at the <em>Hide</em> threshold. It does not depend on rule status (stable/experimental) — only on time since last change.</p>
+                    <p>To exempt a specific rule from decay effects, click the <strong>&#9675; Pin No Decay</strong> button in its detail panel. The exemption is stored in your browser's localStorage.</p>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <script>
+    (function () {
+        'use strict';
+
+        const warnEl  = document.getElementById('warnDays');
+        const greyEl  = document.getElementById('greyDays');
+        const hideEl  = document.getElementById('hideDays');
+        const saveBtn = document.getElementById('saveBtn');
+        const resetBtn= document.getElementById('resetBtn');
+        const enabledEl = document.getElementById('decayEnabled');
+        const enabledLabel = document.getElementById('decayEnabledLabel');
+        const saveStatus = document.getElementById('saveStatus');
+
+        enabledEl.addEventListener('change', () => {
+            enabledLabel.textContent = enabledEl.checked ? 'Enabled' : 'Disabled';
+        });
+
+        function updatePreview() {
+            const warn = parseInt(warnEl.value) || 365;
+            const grey = parseInt(greyEl.value) || 548;
+            const hide = parseInt(hideEl.value) || 730;
+            const tl = document.getElementById('previewTimeline');
+            tl.innerHTML = `
+                <div class="dc-tl-row">
+                    <span class="dc-tl-dot" style="background:#2ea043"></span>
+                    <span class="dc-tl-range">Day 0 – ${warn}</span>
+                    <span class="dc-tl-label">Active (score 100 → ~${Math.round(100 - (warn/hide)*100)})</span>
+                </div>
+                <div class="dc-tl-row">
+                    <span class="dc-tl-dot" style="background:#d29922"></span>
+                    <span class="dc-tl-range">Day ${warn} – ${grey}</span>
+                    <span class="dc-tl-label">Warning shown in detail panel</span>
+                </div>
+                <div class="dc-tl-row">
+                    <span class="dc-tl-dot" style="background:#d46b08"></span>
+                    <span class="dc-tl-range">Day ${grey} – ${hide}</span>
+                    <span class="dc-tl-label">Rule dimmed (greyed out) in sidebar</span>
+                </div>
+                <div class="dc-tl-row">
+                    <span class="dc-tl-dot" style="background:#c0404e"></span>
+                    <span class="dc-tl-range">Day ${hide}+</span>
+                    <span class="dc-tl-label">Rule hidden — use "Decayed" filter to see it</span>
+                </div>`;
+        }
+
+        [warnEl, greyEl, hideEl].forEach(el => el.addEventListener('input', updatePreview));
+        updatePreview();
+
+        function showStatus(msg, ok) {
+            saveStatus.textContent = msg;
+            saveStatus.style.color = ok ? '#2ea043' : '#f85149';
+            saveStatus.hidden = false;
+            setTimeout(() => { saveStatus.hidden = true; }, 3000);
+        }
+
+        saveBtn.addEventListener('click', () => {
+            const payload = {
+                decay_scoring:   enabledEl.checked,
+                decay_warn_days: parseInt(warnEl.value) || 365,
+                decay_grey_days: parseInt(greyEl.value) || 548,
+                decay_hide_days: parseInt(hideEl.value) || 730,
+            };
+            if (payload.decay_warn_days >= payload.decay_grey_days || payload.decay_grey_days >= payload.decay_hide_days) {
+                showStatus('Thresholds must be in ascending order: Warn < Grey < Hide', false);
+                return;
+            }
+            fetch('/api/decay-config', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload),
+            })
+            .then(r => r.json())
+            .then(d => {
+                if (d.error) showStatus('Error: ' + d.error, false);
+                else showStatus('Saved!', true);
+            })
+            .catch(() => showStatus('Save failed', false));
+        });
+
+        resetBtn.addEventListener('click', () => {
+            warnEl.value = 365;
+            greyEl.value = 548;
+            hideEl.value = 730;
+            enabledEl.checked = true;
+            enabledLabel.textContent = 'Enabled';
+            updatePreview();
+        });
+    })();
+    </script>
+</body>
+</html>

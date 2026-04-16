@@ -1,53 +1,54 @@
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', () => {
     const copyButton = document.getElementById('copyRuleButton');
+    const ruleContentElement = document.getElementById('ruleYamlContent');
 
-    if (copyButton) {
-        // Speichere das ursprüngliche Icon und den Text einmalig
-        const originalButtonIcon = copyButton.querySelector('.icon-copy') ? copyButton.querySelector('.icon-copy').outerHTML : '';
-        const originalButtonText = copyButton.querySelector('.btn-copy-text') ? copyButton.querySelector('.btn-copy-text').innerText : 'Kopieren';
-
-        copyButton.addEventListener('click', function() {
-            const ruleContentElement = document.getElementById('ruleYamlContent'); // ID verwenden
-
-            if (ruleContentElement) {
-                const ruleText = ruleContentElement.innerText; // .innerText ist hier besser für <pre><code>
-                navigator.clipboard.writeText(ruleText).then(function() {
-                    // Erfolgsfeedback
-                    if(copyButton.querySelector('.btn-copy-text')) {
-                        copyButton.querySelector('.btn-copy-text').innerText = 'Kopiert!';
-                    } else { // Fallback falls span nicht da
-                        copyButton.innerHTML = originalButtonIcon + " Kopiert!";
-                    }
-                    copyButton.disabled = true;
-
-                    setTimeout(function() {
-                        if(copyButton.querySelector('.btn-copy-text')) {
-                            copyButton.querySelector('.btn-copy-text').innerText = originalButtonText;
-                        } else {
-                             copyButton.innerHTML = originalButtonIcon + " " + originalButtonText;
-                        }
-                        copyButton.disabled = false;
-                    }, 2000); // Nach 2 Sekunden zurücksetzen
-                }).catch(function(err) {
-                    console.error('Fehler beim Kopieren des Textes: ', err);
-                    // Optional: Fehlerfeedback für den Benutzer
-                    const tempErrorText = 'Fehler!';
-                    if(copyButton.querySelector('.btn-copy-text')) {
-                        copyButton.querySelector('.btn-copy-text').innerText = tempErrorText;
-                    } else {
-                        copyButton.innerHTML = originalButtonIcon + " " + tempErrorText;
-                    }
-                     setTimeout(function() {
-                        if(copyButton.querySelector('.btn-copy-text')) {
-                            copyButton.querySelector('.btn-copy-text').innerText = originalButtonText;
-                        } else {
-                            copyButton.innerHTML = originalButtonIcon + " " + originalButtonText;
-                        }
-                    }, 2000);
-                });
-            } else {
-                console.error('Regelelement mit ID "ruleYamlContent" nicht gefunden.');
-            }
-        });
+    // Exit if the necessary elements don't exist on the page
+    if (!copyButton || !ruleContentElement) {
+        return;
     }
+
+    const buttonTextSpan = copyButton.querySelector('.btn-copy-text');
+    const originalButtonText = buttonTextSpan ? buttonTextSpan.textContent : 'Copy';
+
+    /**
+     * Updates the button's appearance and state.
+     * @param {string} text - The text to display on the button.
+     * @param {string} state - The state ('success', 'error', or 'reset').
+     */
+    const setButtonState = (text, state) => {
+        if (buttonTextSpan) {
+            buttonTextSpan.textContent = text;
+        }
+        
+        copyButton.disabled = (state !== 'reset');
+        
+        copyButton.classList.remove('is-success', 'is-error');
+        if (state === 'success') {
+            copyButton.classList.add('is-success');
+        } else if (state === 'error') {
+            copyButton.classList.add('is-error');
+        }
+    };
+
+    copyButton.addEventListener('click', () => {
+        const ruleText = ruleContentElement.textContent;
+
+        navigator.clipboard.writeText(ruleText).then(() => {
+            // --- Success ---
+            setButtonState('Copied!', 'success');
+            
+            setTimeout(() => {
+                setButtonState(originalButtonText, 'reset');
+            }, 2000); // Reset after 2 seconds
+
+        }).catch(err => {
+            // --- Error ---
+            console.error('Failed to copy text: ', err);
+            setButtonState('Error!', 'error');
+
+            setTimeout(() => {
+                setButtonState(originalButtonText, 'reset');
+            }, 2000); // Reset after 2 seconds
+        });
+    });
 });

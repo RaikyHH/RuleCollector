@@ -1,0 +1,9 @@
+{
+  "tide_chart": true,
+  "decay_scoring": true,
+  "decay_warn_days": 365,
+  "decay_grey_days": 550,
+  "decay_hide_days": 730,
+  "scheduler_enabled": false,
+  "scheduler_interval_hours": 24
+}

@@ -1,0 +1,23 @@
+[
+  {
+    "name": "SigmaHQ Rules (Full Repo)",
+    "url": "https://api.github.com/repos/SigmaHQ/sigma/contents/rules",
+    "type": "github_repo_folder",
+    "enabled": true,
+    "github_token": ""
+  },
+  {
+    "name": "JoeSecurity Sigma Rules",
+    "url": "https://api.github.com/repos/joesecurity/sigma-rules/contents/",
+    "type": "github_repo_folder",
+    "enabled": true,
+    "github_token": ""
+  },
+  {
+    "name": "Single File Example",
+    "url": "https://raw.githubusercontent.com/SigmaHQ/sigma/master/rules/windows/process_creation/proc_creation_win_lolbas.yml",
+    "type": "single_file_yaml",
+    "enabled": false,
+    "github_token": ""
+  }
+]

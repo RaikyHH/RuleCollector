@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Coverage Heatmap — RuleCollector</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .heatmap-grid {
+            display: grid;
+            grid-template-columns: 120px repeat({{ levels|length }}, 1fr) 60px;
+            gap: 3px;
+        }
+        .hm-header {
+            font-family: var(--font-family-mono);
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--text-subtle);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            padding: 6px 4px;
+            text-align: center;
+        }
+        .hm-label {
+            font-family: var(--font-family-mono);
+            font-size: 11px;
+            color: var(--text-secondary);
+            padding: 8px 8px 8px 4px;
+            display: flex;
+            align-items: center;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .hm-cell {
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: var(--font-family-mono);
+            font-size: 11px;
+            font-weight: 600;
+            min-height: 36px;
+            cursor: pointer;
+            transition: opacity 0.15s ease, transform 0.1s ease;
+            text-decoration: none;
+        }
+        .hm-cell:hover {
+            opacity: 0.82;
+            transform: scale(1.04);
+        }
+        .hm-cell-0 {
+            background-color: #141414;
+            color: var(--text-subtle);
+        }
+        /* Severity-tinted cells: opacity by count */
+        .hm-cell[data-level="critical"] { background-color: #3d1a1a; color: #f85149; }
+        .hm-cell[data-level="high"]     { background-color: #2d1010; color: #f85149; }
+        .hm-cell[data-level="medium"]   { background-color: #2d2008; color: #d29922; }
+        .hm-cell[data-level="low"]      { background-color: #0a2030; color: #56c2e6; }
+        .hm-cell[data-level="informational"] { background-color: #1a1a1a; color: #666; }
+        .hm-total {
+            background-color: #1a0a0c;
+            color: #c0404e;
+        }
+        .hm-legend {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-top: 20px;
+        }
+        .hm-legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+        .hm-legend-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <nav class="nav-tabs" aria-label="Primary">
+        <div class="nav-brand">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <path d="M12 2L4 6v6c0 5 3.5 9.3 8 10.3C16.5 21.3 20 17 20 12V6l-8-4z" fill="#7d212b" opacity="0.25"/>
+                <path d="M12 2L4 6v6c0 5 3.5 9.3 8 10.3C16.5 21.3 20 17 20 12V6l-8-4z" stroke="#7d212b" stroke-width="1.5" stroke-linejoin="round"/>
+                <path d="M9 12l2 2 4-4" stroke="#c0404e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span class="nav-brand-name">RuleCollector</span>
+        </div>
+        <a href="{{ url_for('index') }}" class="nav-tab">Rules</a>
+        <a href="{{ url_for('sources_page') }}" class="nav-tab">Sources</a>
+        <a href="{{ url_for('heatmap_page') }}" class="nav-tab active">Heatmap</a>
+        <a href="{{ url_for('collection_page') }}" class="nav-tab">Collection</a>
+        <a href="{{ url_for('tide_page') }}" class="nav-tab">Tide</a>
+        <a href="{{ url_for('decay_config_page') }}" class="nav-tab">Decay</a>
+    </nav>
+
+    <div class="page-container">
+        <div class="page-inner">
+            <h1 class="page-title">MITRE ATT&CK Coverage</h1>
+            <p class="page-subtitle">Rule coverage per tactic, broken down by severity level. Click a cell to filter rules.</p>
+
+            <section class="card">
+                <div class="card-body" style="padding: 20px; overflow-x: auto;">
+                    <div class="heatmap-grid">
+                        {# Header row #}
+                        <div class="hm-header">Tactic</div>
+                        {% for lvl in levels %}
+                        <div class="hm-header">{{ lvl[:4]|upper }}</div>
+                        {% endfor %}
+                        <div class="hm-header">Total</div>
+
+                        {# Data rows #}
+                        {% for row in heatmap_data %}
+                        <div class="hm-label" title="{{ row.slug }}">{{ row.label }}</div>
+                        {% for lvl in levels %}
+                        {% set cnt = row.counts.get(lvl, 0) %}
+                        {% if cnt > 0 %}
+                        <a href="{{ url_for('index', mitre_id='attack.' + row.slug, level=lvl) }}"
+                           class="hm-cell"
+                           data-level="{{ lvl }}"
+                           title="{{ cnt }} {{ lvl }} rules for {{ row.slug }}"
+                           style="opacity: {{ 1.0 if (0.35 + cnt * 0.065) >= 1.0 else (0.35 + cnt * 0.065) }}">{{ cnt }}</a>
+                        {% else %}
+                        <div class="hm-cell hm-cell-0" title="No {{ lvl }} rules for {{ row.slug }}">—</div>
+                        {% endif %}
+                        {% endfor %}
+                        <div class="hm-cell hm-total" {% if row.counts.total > 0 %}title="{{ row.counts.total }} total rules"{% endif %}>
+                            {{ row.counts.total if row.counts.total > 0 else '—' }}
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="hm-legend">
+                        <div class="hm-legend-item"><div class="hm-legend-dot" style="background:#3d1a1a;"></div> Critical / High</div>
+                        <div class="hm-legend-item"><div class="hm-legend-dot" style="background:#2d2008;"></div> Medium</div>
+                        <div class="hm-legend-item"><div class="hm-legend-dot" style="background:#0a2030;"></div> Low</div>
+                        <div class="hm-legend-item"><div class="hm-legend-dot" style="background:#1a1a1a;"></div> Informational</div>
+                        <div class="hm-legend-item"><div class="hm-legend-dot" style="background:#141414; border:1px solid #252525;"></div> No coverage</div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
+</body>
+</html>
