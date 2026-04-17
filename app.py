@@ -468,7 +468,7 @@ def _ensure_schema(conn):
             logsource_category TEXT,
             logsource_service TEXT,
             detection TEXT,
-            references TEXT,
+            "references" TEXT,
             falsepositives TEXT,
             raw_rule TEXT,
             source_name TEXT,
