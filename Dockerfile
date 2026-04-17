@@ -27,6 +27,7 @@ COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/pytho
 COPY --from=builder /usr/local/bin/gunicorn /usr/local/bin/gunicorn
 
 COPY app.py .
+COPY collector.py .
 COPY templates/ templates/
 COPY static/ static/
 COPY features.json .
