@@ -294,6 +294,10 @@ def _insert_sync_history(source_name: str, started_at: float, finished_at: float
 
 def _run_sync(job_id: str, sources: list[dict]):
     """Run collector logic in a background thread, posting events to the job."""
+    import sys
+    _app_dir = os.path.dirname(os.path.abspath(__file__))
+    if _app_dir not in sys.path:
+        sys.path.insert(0, _app_dir)
     import collector as col
 
     overall_start = time.time()
