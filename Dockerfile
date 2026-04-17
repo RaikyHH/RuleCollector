@@ -14,9 +14,11 @@ FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PYTHONPATH=/usr/src/app
+    PYTHONPATH=/usr/src/app \
+    HOME=/home/appuser
 
-RUN adduser --system --group appuser
+RUN groupadd --gid 1001 appuser \
+    && useradd --uid 1001 --gid appuser --home /home/appuser --create-home --shell /sbin/nologin appuser
 
 WORKDIR /usr/src/app
 
