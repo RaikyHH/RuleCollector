@@ -452,9 +452,43 @@ def _discover_sigma_folder(owner, repo, token=None):
         'truncated': tree.get('truncated', False),
     }
 
+def _ensure_schema(conn):
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS sigma_rules (
+            id TEXT PRIMARY KEY,
+            title TEXT,
+            status TEXT,
+            level TEXT,
+            description TEXT,
+            author TEXT,
+            date TEXT,
+            tags TEXT,
+            logsource TEXT,
+            logsource_product TEXT,
+            logsource_category TEXT,
+            logsource_service TEXT,
+            detection TEXT,
+            references TEXT,
+            falsepositives TEXT,
+            raw_rule TEXT,
+            source_name TEXT,
+            source_url TEXT,
+            first_seen_at TEXT,
+            last_updated_at TEXT,
+            rule_hash TEXT,
+            sigmahq_path TEXT,
+            sigmahq_category_1 TEXT,
+            sigmahq_category_2 TEXT,
+            rule_authored_at TEXT
+        )
+    """)
+    conn.commit()
+
+
 def get_db_connection():
     conn = sqlite3.connect(DB_FILE)
     conn.row_factory = sqlite3.Row
+    _ensure_schema(conn)
     return conn
 
 
