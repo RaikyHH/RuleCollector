@@ -605,6 +605,29 @@
                             </div>
                         </div>
                     </div>
+                    <!-- Danger Zone -->
+                    <div class="panel-card" style="border-color:rgba(248,81,73,0.3);">
+                        <div class="panel-card-header" style="color:#f85149;border-bottom-color:rgba(248,81,73,0.2);">
+                            Danger Zone
+                        </div>
+                        <div class="panel-card-body" style="display:flex;flex-direction:column;gap:10px;">
+                            <div>
+                                <div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:4px;">Force Full Sync</div>
+                                <div style="font-size:11px;color:var(--text-subtle);margin-bottom:8px;">Löscht den Sync-State aller Quellen. Beim nächsten Sync werden alle Regeln neu heruntergeladen.</div>
+                                <button type="button" class="btn btn-secondary" id="forceSyncBtn" style="width:100%;font-size:12px;border-color:rgba(248,81,73,0.3);color:#f85149;">
+                                    Force Full Sync
+                                </button>
+                            </div>
+                            <div style="border-top:1px solid rgba(248,81,73,0.15);padding-top:10px;">
+                                <div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:4px;">Reset Database</div>
+                                <div style="font-size:11px;color:var(--text-subtle);margin-bottom:8px;">Löscht alle Regeln und den Sync-State vollständig. Nicht rückgängig zu machen.</div>
+                                <button type="button" class="btn btn-secondary" id="resetDbBtn" style="width:100%;font-size:12px;border-color:rgba(248,81,73,0.3);color:#f85149;">
+                                    Reset Database
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
                 </div>
             </div>
         </div>
@@ -1015,6 +1038,63 @@
 
         loadStatus();
         setInterval(loadStatus, 30000);
+    })();
+    </script>
+
+    <script>
+    (function () {
+        const forceSyncBtn = document.getElementById('forceSyncBtn');
+        const resetDbBtn   = document.getElementById('resetDbBtn');
+
+        forceSyncBtn.addEventListener('click', async () => {
+            if (!confirm('Sync-State löschen und alle Quellen vollständig neu laden?')) return;
+            forceSyncBtn.disabled = true;
+            forceSyncBtn.textContent = 'Starte…';
+            try {
+                const resp = await fetch('/api/sync/force', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+                const data = await resp.json();
+                if (data.error) { alert('Fehler: ' + data.error); return; }
+                // Reuse existing toast/SSE logic
+                const toastContainer = document.getElementById('toastContainer');
+                const t = document.createElement('div');
+                t.className = 'toast is-visible';
+                t.innerHTML = `<div class="toast-header"><span class="toast-title">Force Sync läuft…</span></div><ul class="toast-events"></ul><div class="toast-footer"></div>`;
+                toastContainer.appendChild(t);
+                const es = new EventSource('/api/sync/stream/' + data.job_id);
+                es.onmessage = (e) => {
+                    const ev = JSON.parse(e.data);
+                    if (ev.type === 'finished') {
+                        es.close();
+                        t.querySelector('.toast-footer').textContent = ev.status === 'done' ? 'Force Sync abgeschlossen' : 'Fehler beim Sync';
+                        setTimeout(() => window.location.reload(), 2500);
+                    }
+                };
+                es.onerror = () => { es.close(); };
+            } catch (err) {
+                alert('Netzwerkfehler: ' + err.message);
+            } finally {
+                forceSyncBtn.disabled = false;
+                forceSyncBtn.textContent = 'Force Full Sync';
+            }
+        });
+
+        resetDbBtn.addEventListener('click', async () => {
+            if (!confirm('ACHTUNG: Alle Regeln und der Sync-State werden unwiderruflich gelöscht. Fortfahren?')) return;
+            if (!confirm('Wirklich sicher? Diese Aktion kann nicht rückgängig gemacht werden.')) return;
+            resetDbBtn.disabled = true;
+            resetDbBtn.textContent = 'Lösche…';
+            try {
+                const resp = await fetch('/api/db/reset', { method: 'POST' });
+                const data = await resp.json();
+                if (data.error) { alert('Fehler: ' + data.error); return; }
+                window.location.reload();
+            } catch (err) {
+                alert('Netzwerkfehler: ' + err.message);
+            } finally {
+                resetDbBtn.disabled = false;
+                resetDbBtn.textContent = 'Reset Database';
+            }
+        });
     })();
     </script>
 </body>
