@@ -1337,6 +1337,59 @@ def api_sync_history():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/db/reset', methods=['POST'])
+def api_db_reset():
+    """Drop and recreate the sigma_rules table, wipe sync state files."""
+    import glob as _glob
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        conn.execute('DROP TABLE IF EXISTS sigma_rules')
+        conn.execute('DROP TABLE IF EXISTS sync_history')
+        conn.commit()
+        conn.close()
+        # Wipe state files so the next sync is a full re-download
+        state_dir = os.path.join(_DATA_DIR, 'sync_state')
+        for f in _glob.glob(os.path.join(state_dir, '*.json')):
+            try:
+                os.remove(f)
+            except OSError:
+                pass
+        # Re-create schema on fresh connection
+        conn = get_db_connection()
+        conn.close()
+        return jsonify({'ok': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/sync/force', methods=['POST'])
+def api_sync_force():
+    """Clear sync state for all (or specific) sources, then kick off a sync."""
+    import glob as _glob
+    payload = request.get_json(silent=True) or {}
+    indices = payload.get('indices')  # None = all enabled
+    state_dir = os.path.join(_DATA_DIR, 'sync_state')
+    for f in _glob.glob(os.path.join(state_dir, '*.json')):
+        try:
+            os.remove(f)
+        except OSError:
+            pass
+    all_sources = _load_config()
+    if indices is not None:
+        try:
+            sources_to_sync = [all_sources[i] for i in indices if 0 <= i < len(all_sources)]
+        except (TypeError, KeyError):
+            return jsonify({'error': 'Invalid indices.'}), 400
+    else:
+        sources_to_sync = [s for s in all_sources if s.get('enabled')]
+    if not sources_to_sync:
+        return jsonify({'error': 'No enabled sources to sync.'}), 400
+    job_id = _new_job(indices)
+    t = threading.Thread(target=_run_sync, args=(job_id, sources_to_sync), daemon=True)
+    t.start()
+    return jsonify({'job_id': job_id})
+
+
 # ---------------------------------------------------------------------------
 # Feature #9 — Analyst Bookmark Collections
 # ---------------------------------------------------------------------------
