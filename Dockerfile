@@ -27,9 +27,14 @@ COPY app.py .
 COPY templates/ templates/
 COPY static/ static/
 COPY features.json .
+COPY config.example.json .
+COPY docker-entrypoint.sh /usr/local/bin/entrypoint.sh
 
-# /data is the volume mount point for sigma_rules.db, config.json, sync_state/
-RUN mkdir /data && chown appuser:appuser /data && chown -R appuser:appuser /usr/src/app
+# /data is the volume mount point for all persistent state
+RUN mkdir /data \
+    && chown appuser:appuser /data \
+    && chown -R appuser:appuser /usr/src/app \
+    && chmod +x /usr/local/bin/entrypoint.sh
 
 LABEL org.opencontainers.image.source="https://github.com/RaikyHH/RuleCollector"
 LABEL org.opencontainers.image.description="Web viewer for Sigma detection rules"
@@ -39,8 +44,10 @@ USER appuser
 
 EXPOSE 5000
 
-# app.py and gunicorn resolve files relative to cwd; run from /data so the
-# app finds sigma_rules.db and config.json in the mounted volume.
+# All runtime files (sigma_rules.db, config.json, features.json, sync_state/)
+# live in /data. The entrypoint seeds defaults on first run without overwriting
+# existing files, so user settings survive image updates.
 WORKDIR /data
 
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 CMD ["gunicorn", "--workers", "4", "--bind", "0.0.0.0:5000", "--chdir", "/usr/src/app", "app:app"]

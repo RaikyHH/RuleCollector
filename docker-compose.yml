@@ -6,16 +6,22 @@ services:
     ports:
       - "5000:5000"
     volumes:
-      # Persistent data: database, config, sync state and local rule files
+      # All persistent data lives here:
+      #   sigma_rules.db        — rule database
+      #   config.json           — source configuration (seeded from config.example.json on first run)
+      #   features.json         — feature flags and scheduler settings (seeded from image default on first run)
+      #   sync_state/           — incremental sync state per source
+      #   sigma_rules_files/    — cached raw YAML files
       - ./data:/data
+    env_file:
+      # Copy .env.example to .env and fill in your values.
+      # Required: GITHUB_TOKEN (avoids GitHub rate limits)
+      # Optional: HTTP_PROXY / HTTPS_PROXY / NO_PROXY
+      - path: .env
+        required: false
     environment:
-      # --- GitHub token (required for syncing private repos or to avoid rate limits) ---
-      # Either set it here directly or use a .env file (see below)
+      # Inline overrides — prefer .env for secrets.
       # GITHUB_TOKEN: your_token_here
-
-      # --- Proxy (optional) ---
-      # Both requests (collector) and urllib (app discovery) honour these standard vars.
-      # Uncomment and fill in if your host is behind a proxy.
       # HTTP_PROXY: "http://proxy.example.com:3128"
       # HTTPS_PROXY: "http://proxy.example.com:3128"
       # NO_PROXY: "localhost,127.0.0.1"
