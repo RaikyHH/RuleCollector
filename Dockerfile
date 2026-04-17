@@ -59,6 +59,7 @@ CMD ["gunicorn", \
      "--threads", "2", \
      "--timeout", "120", \
      "--keep-alive", "5", \
+     "--access-logfile", "-", \
      "--bind", "0.0.0.0:5000", \
      "--chdir", "/usr/src/app", \
      "app:app"]
