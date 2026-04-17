@@ -1592,11 +1592,11 @@ def api_decay_config():
                 features[key] = val
 
     try:
-        dir_name = os.path.dirname(os.path.abspath('features.json')) or '.'
+        dir_name = os.path.dirname(os.path.abspath(FEATURES_FILE)) or '.'
         fd, tmp = tempfile.mkstemp(prefix='.feat_', suffix='.tmp', dir=dir_name)
         with os.fdopen(fd, 'w', encoding='utf-8') as f:
             json.dump(features, f, indent=2)
-        os.replace(tmp, 'features.json')
+        os.replace(tmp, FEATURES_FILE)
     except OSError as e:
         return jsonify({'error': str(e)}), 500
 
