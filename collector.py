@@ -13,10 +13,11 @@ import traceback
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # --- Global Config ---
-CONFIG_FILE = 'config.json'
-DB_FILE = 'sigma_rules.db'
-RULES_DIR = 'sigma_rules_files'
-STATE_DIR = 'sync_state'
+_DATA_DIR = os.environ.get('DATA_DIR', os.path.dirname(os.path.abspath(__file__)))
+CONFIG_FILE = os.path.join(_DATA_DIR, 'config.json')
+DB_FILE = os.path.join(_DATA_DIR, 'sigma_rules.db')
+RULES_DIR = os.path.join(_DATA_DIR, 'sigma_rules_files')
+STATE_DIR = os.path.join(_DATA_DIR, 'sync_state')
 REQUEST_TIMEOUT = 30
 USER_AGENT = "SigmaRuleCollector/1.0"
 MAX_WORKERS = 20
