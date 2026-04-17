@@ -336,6 +336,10 @@ def _run_sync(job_id: str, sources: list[dict]):
 
 
 def _get_shared_token(sources):
+    # Env var takes precedence over per-source config (useful in Docker/CI)
+    env_token = os.environ.get('GITHUB_TOKEN', '').strip()
+    if env_token:
+        return env_token
     for src in sources:
         token = src.get('github_token')
         if token:

@@ -605,8 +605,9 @@ def process_source(source_config, live_status: dict, overall_start_time: float):
 
     if source_config['type'] == 'github_repo_folder':
         github_headers = {'User-Agent': USER_AGENT, 'Accept': 'application/vnd.github.v3+json'}
-        if source_config.get('github_token'):
-            github_headers['Authorization'] = f"token {source_config['github_token']}"
+        token = source_config.get('github_token') or os.environ.get('GITHUB_TOKEN', '')
+        if token:
+            github_headers['Authorization'] = f"token {token}"
         fetch_and_process_github_repo(source_config, github_headers, live_status, overall_start_time)
 
     elif source_config['type'] == 'single_file_yaml':

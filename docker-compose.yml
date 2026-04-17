@@ -1,0 +1,21 @@
+services:
+  rulecollector:
+    image: ghcr.io/raikyhh/rulecollector:latest
+    container_name: rulecollector
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    volumes:
+      # Persistent data: database, config, sync state and local rule files
+      - ./data:/data
+    environment:
+      # --- GitHub token (required for syncing private repos or to avoid rate limits) ---
+      # Either set it here directly or use a .env file (see below)
+      # GITHUB_TOKEN: your_token_here
+
+      # --- Proxy (optional) ---
+      # Both requests (collector) and urllib (app discovery) honour these standard vars.
+      # Uncomment and fill in if your host is behind a proxy.
+      # HTTP_PROXY: "http://proxy.example.com:3128"
+      # HTTPS_PROXY: "http://proxy.example.com:3128"
+      # NO_PROXY: "localhost,127.0.0.1"
