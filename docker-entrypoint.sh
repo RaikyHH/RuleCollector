@@ -2,6 +2,8 @@
 # Copy default config files into the data volume on first run.
 # Existing files are never overwritten.
 
+mkdir -p /data/sync_state
+
 if [ ! -f /data/features.json ]; then
     cp /usr/src/app/features.json /data/features.json
 fi

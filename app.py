@@ -14,9 +14,10 @@ from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 
 app = Flask(__name__)
-DB_FILE = 'sigma_rules.db'
-CONFIG_FILE = 'config.json'
-FEATURES_FILE = 'features.json'
+_DATA_DIR = os.environ.get('DATA_DIR', os.path.dirname(os.path.abspath(__file__)))
+DB_FILE = os.path.join(_DATA_DIR, 'sigma_rules.db')
+CONFIG_FILE = os.path.join(_DATA_DIR, 'config.json')
+FEATURES_FILE = os.path.join(_DATA_DIR, 'features.json')
 
 # Genome similarity cache (module-level)
 _genome_cache = {'index': None, 'count': -1}
@@ -890,7 +891,7 @@ def api_rule_versions():
 
 def _load_sync_state(source_name: str) -> dict:
     """Load the sync_state JSON for a given source name, or return {}."""
-    state_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'sync_state')
+    state_dir = os.path.join(_DATA_DIR, 'sync_state')
     safe_name = re.sub(r'\W', '_', source_name) + '.json'
     path = os.path.join(state_dir, safe_name)
     if not os.path.isfile(path):
